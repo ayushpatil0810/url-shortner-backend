@@ -10,7 +10,7 @@ import crypto from "crypto";
 
 // Define the structure of the JWT payload
 interface JwtPayload {
-  id: string;
+  id: number;
 }
 
 // Hash a plain text password
@@ -37,16 +37,24 @@ const verifyToken = async (token: string): Promise<JwtPayload | null> => {
 
 // Generate an access token for a user
 const generateAccessToken = async (userId: number): Promise<string> => {
-  return jwt.sign({ id: userId }, ACCESS_TOKEN_CONFIG.secret, {
-    expiresIn: ACCESS_TOKEN_CONFIG.expiresIn,
-  });
+  return jwt.sign(
+    { id: userId },
+    ACCESS_TOKEN_CONFIG.secret,
+    {
+      expiresIn: ACCESS_TOKEN_CONFIG.expiresIn as string,
+    } as jwt.SignOptions,
+  );
 };
 
 // Generate a refresh token for a user
 const generateRefreshToken = async (userId: number): Promise<string> => {
-  return jwt.sign({ id: userId }, REFRESH_TOKEN_CONFIG.secret, {
-    expiresIn: REFRESH_TOKEN_CONFIG.expiresIn,
-  });
+  return jwt.sign(
+    { id: userId },
+    REFRESH_TOKEN_CONFIG.secret,
+    {
+      expiresIn: REFRESH_TOKEN_CONFIG.expiresIn as string,
+    } as jwt.SignOptions,
+  );
 };
 
 // Generate a temporary token for a user

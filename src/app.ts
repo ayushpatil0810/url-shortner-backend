@@ -2,7 +2,7 @@ import express, { type Application } from "express";
 import { CORS_ORIGIN } from "./config/env.js";
 import cors from "cors";
 import helmet from "helmet";
-import { authRouter } from "./routes/index.js";
+import { authRouter, healthCheckRouter, userRouter } from "./routes/index.js";
 import errorHandler from "./middlewares/errorHandler.js";
 import cookieParser from "cookie-parser";
 const app: Application = express();
@@ -20,6 +20,7 @@ app.use(cookieParser());
 app.use(
   cors({
     origin: CORS_ORIGIN,
+    credentials: true, // Allow cookies to be sent
     methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
     allowedHeaders: "Content-Type, Authorization",
     preflightContinue: false,
@@ -28,6 +29,8 @@ app.use(
 );
 
 app.use("/api/v1/auth", authRouter);
+app.use("/api/v1/user", userRouter);
+app.use("/api/v1", healthCheckRouter);
 
 // Global error handler (must be last)
 app.use(errorHandler);

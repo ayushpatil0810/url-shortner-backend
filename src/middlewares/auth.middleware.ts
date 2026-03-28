@@ -5,48 +5,13 @@ import { ACCESS_TOKEN_CONFIG } from "../config/env.js";
 
 // Extend the Express Request interface to include a userId property
 interface AuthenticatedRequest extends Request {
-  userId?: string;
+  userId?: number;
 }
 
-// Middleware to authenticate requests using JWT
-// export const authMiddleware = asyncHandler(
-//   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-//     const authHeader = req.headers.authorization;
-
-//     // Check if the Authorization header is present and starts with "Bearer "
-//     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-//       return res.status(401).json({ message: "Unauthorized" });
-//     }
-
-//     // Extract the token from the header
-//     const token = authHeader.split(" ")[1];
-
-//     // If no token is found, return an unauthorized error
-//     if (!token) {
-//       return res.status(401).json({ message: "Unauthorized" });
-//     }
-
-//     // Verify the token and extract the user ID
-//     try {
-//       const decoded = jwt.verify(token, ACCESS_TOKEN_CONFIG.secret) as {
-//         id: string;
-//       };
-//       // Attach the user ID to the request object for use in subsequent middleware or route handlers
-//       req.userId = decoded.id;
-//       next();
-//     } catch (err) {
-//       console.error("JWT Error:", err);
-//       return res.status(401).json({ message: "Unauthorized" });
-//     }
-//   },
-// );
-
-
-// Updated middleware to check for tokens in both cookies and Authorization header
+// Middleware to authenticate requests using JWT (checks cookies and Authorization header)
 export const authMiddleware = asyncHandler(
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-
-    // Mobile clients might send the token in the Authorization header, while web clients might use cookies. Check both.
+    // Mobile clients might send the token in the Authorization header, while web clients might use cookies
     const token =
       req.cookies?.accessToken || req.headers.authorization?.split(" ")[1];
 
@@ -57,13 +22,12 @@ export const authMiddleware = asyncHandler(
     try {
       // Verify the token and extract the user ID
       const decoded = jwt.verify(token, ACCESS_TOKEN_CONFIG.secret) as {
-        id: string;
+        id: number;
       };
       // Attach the user ID to the request object for use in subsequent middleware or route handlers
       req.userId = decoded.id;
       next();
     } catch (err) {
-      console.error("JWT Error:", err);
       return res.status(401).json({ message: "Unauthorized" });
     }
   },

@@ -2,6 +2,30 @@ import "dotenv/config.js";
 import msConverter from "../utils/msConverter.js";
 import { type StringValue } from "ms";
 
+// Validate required environment variables
+const requiredEnvVars = [
+  "DATABASE_URL",
+  "ACCESS_TOKEN_SECRET",
+  "REFRESH_TOKEN_SECRET",
+  "APP_BASE_URL",
+  "MAILTRAP_HOST",
+  "MAILTRAP_PORT",
+  "MAILTRAP_USER",
+  "MAILTRAP_PASS",
+];
+
+const missingEnvVars = requiredEnvVars.filter(
+  (varName) => !process.env[varName],
+);
+
+if (missingEnvVars.length > 0) {
+  console.error(
+    `❌ Missing required environment variables: ${missingEnvVars.join(", ")}`,
+  );
+  console.error("Please check your .env file and ensure all required variables are set.");
+  process.exit(1);
+}
+
 const DATABASE_URL = process.env.DATABASE_URL as string;
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET as string;
@@ -13,14 +37,16 @@ const APP_WEBSITE = process.env.APP_WEBSITE || "https://yourapp.com";
 
 const ACCESS_TOKEN_CONFIG = {
   secret: process.env.ACCESS_TOKEN_SECRET as string,
-  expiresIn:
-    msConverter(process.env.ACCESS_TOKEN_EXPIRY as StringValue) || 3600000, // Default to 1 hour if not set,
+  expiresIn: (process.env.ACCESS_TOKEN_EXPIRY as string) || "15m", // JWT expects string format
+  expiresInMs:
+    msConverter((process.env.ACCESS_TOKEN_EXPIRY as StringValue) || "15m"), // For cookie maxAge
 };
 
 const REFRESH_TOKEN_CONFIG = {
   secret: process.env.REFRESH_TOKEN_SECRET as string,
-  expiresIn:
-    msConverter(process.env.REFRESH_TOKEN_EXPIRY as StringValue) || 604800000, // Default to 7 days if not set,
+  expiresIn: (process.env.REFRESH_TOKEN_EXPIRY as string) || "7d", // JWT expects string format
+  expiresInMs:
+    msConverter((process.env.REFRESH_TOKEN_EXPIRY as StringValue) || "7d"), // For cookie maxAge and DB storage
 };
 
 const MAILTRAP_CONFIG = {
