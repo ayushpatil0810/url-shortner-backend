@@ -8,6 +8,8 @@ const JWT_SECRET = process.env.JWT_SECRET as string;
 const SALT_ROUNDS = parseInt(process.env.SALT_ROUNDS as string, 10) || 10;
 const CORS_ORIGIN = process.env.CORS_ORIGIN as string;
 const APP_BASE_URL = process.env.APP_BASE_URL as string;
+const APP_NAME = process.env.APP_NAME || "Your App";
+const APP_WEBSITE = process.env.APP_WEBSITE || "https://yourapp.com";
 
 const ACCESS_TOKEN_CONFIG = {
   secret: process.env.ACCESS_TOKEN_SECRET as string,
@@ -40,4 +42,6 @@ export {
   ACCESS_TOKEN_CONFIG,
   REFRESH_TOKEN_CONFIG,
   APP_BASE_URL,
+  APP_NAME,
+  APP_WEBSITE,
 };

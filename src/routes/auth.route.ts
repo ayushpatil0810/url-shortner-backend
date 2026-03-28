@@ -1,11 +1,14 @@
 import express from "express";
-import { signUp, signIn } from "../controllers/auth.controller.js";
-import { authMiddleware } from "../middlewares/auth.middleware.js";
+import { signUp, signIn, verifyEmail } from "../controllers/auth.controller.js";
+import { authRateLimiter } from "../middlewares/rateLimiter.js";
 const router = express.Router();
 
-// authentication routes
+// Public routes (no authentication required) with rate limiting
+router.route("/signup").post(authRateLimiter, signUp);
+router.route("/signin").post(authRateLimiter, signIn);
+router.route("/verify-email").get(verifyEmail);
 
-router.route("/signup").post(signUp);
-router.route("/signin").post(signIn);
+// Protected routes would go below with authMiddleware applied individually
+// Example: router.route("/profile").get(authMiddleware, getProfile);
 
 export default router;

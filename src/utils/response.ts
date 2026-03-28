@@ -17,7 +17,7 @@ const sendError = (
   res: Response,
   message = "Something went wrong",
   statusCode = 500,
-  errors = null,
+  errors: unknown = null,
 ) => {
   return res.status(statusCode).json({
     success: false,

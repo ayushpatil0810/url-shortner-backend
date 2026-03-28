@@ -1,7 +1,7 @@
 import asyncHandler from "../utils/asyncHandler.js";
 import jwt from "jsonwebtoken";
 import { type Request, type Response, type NextFunction } from "express";
-import { JWT_SECRET } from "../config/env.js";
+import { ACCESS_TOKEN_CONFIG } from "../config/env.js";
 
 // Extend the Express Request interface to include a userId property
 interface AuthenticatedRequest extends Request {
@@ -27,9 +27,10 @@ export const authMiddleware = asyncHandler(
 
     // Verify the token and extract the user ID
     try {
-      const decoded = jwt.verify(token, JWT_SECRET as string) as {
+      const decoded = jwt.verify(token, ACCESS_TOKEN_CONFIG.secret) as {
         id: string;
       };
+      // Attach the user ID to the request object for use in subsequent middleware or route handlers
       req.userId = decoded.id;
       next();
     } catch (err) {

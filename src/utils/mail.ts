@@ -1,6 +1,6 @@
 import Mailgen from "mailgen";
 import nodemailer from "nodemailer";
-import { MAILTRAP_CONFIG } from "../config/env.js";
+import { MAILTRAP_CONFIG, APP_NAME, APP_WEBSITE } from "../config/env.js";
 
 // Function to send an email using Mailgen and Nodemailer
 const sendEmail = async (options: {
@@ -11,8 +11,8 @@ const sendEmail = async (options: {
   const mailgenerator = new Mailgen({
     theme: "default",
     product: {
-      name: "Your App Name",
-      link: "https://yourapp.com",
+      name: APP_NAME,
+      link: APP_WEBSITE,
     },
   });
   // Generate the email content in both plaintext and HTML formats
@@ -40,6 +40,7 @@ const sendEmail = async (options: {
     console.log("Email sent successfully");
   } catch (error) {
     console.error("Error sending email:", error);
+    throw new Error("Failed to send email. Please try again later.");
   }
 };
 // Function to generate email content based on the type of email (welcome or forgot password)

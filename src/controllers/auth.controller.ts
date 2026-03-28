@@ -8,6 +8,7 @@ import {
   getUserByEmail,
   createUser,
   storeVerificationToken,
+  verifyEmailToken,
 } from "../services/user.service.js";
 import { sendError, sendSuccess } from "../utils/response.js";
 import {
@@ -21,6 +22,7 @@ import {
 import { sendEmail, emailContent } from "../utils/mail.js";
 import { APP_BASE_URL } from "../config/env.js";
 import type { ZodFormattedError } from "zod";
+import crypto from "crypto";
 // import logger from "../utils/logger.js"; // swap with your actual logger
 
 
@@ -31,7 +33,12 @@ export const signUp = asyncHandler(async (req: Request, res: Response) => {
 
   // If validation fails, return a 400 error with details
   if (!validationResult.success) {
-    return sendError(res, "Invalid request data", 400);
+    return sendError(
+      res,
+      "Invalid request data",
+      400,
+      validationResult.error.format(),
+    );
   }
 
   // Destructure the validated data
@@ -86,15 +93,6 @@ export const signUp = asyncHandler(async (req: Request, res: Response) => {
     ),
   });
 
-  // Fix #3: Do NOT issue an access token before the email is verified.
-  // Doing so would let unverified users authenticate, undermining the
-  // isEmailVerified gate entirely. The client should prompt the user to
-  // check their inbox instead.
-  //
-  // Uncomment and move this block to your verify-email controller once
-  // the user confirms their address:
-  //   const accessToken = await generateAccessToken(newUser.id);
-
   return sendSuccess(
     res,
     { userId: newUser.id },
@@ -108,18 +106,38 @@ export const signIn = asyncHandler(async (req: Request, res: Response) => {
   const validationResult = signInRequestSchema.safeParse(req.body);
 
   // If validation fails, return a 400 error with details
-  const { email, password } = req.body;
-
   if (!validationResult.success) {
-    return sendError(res, "Invalid request data", 400);
+    return sendError(
+      res,
+      "Invalid request data",
+      400,
+      validationResult.error.format(),
+    );
+  }
+
+  // Destructure the validated data
+  const { email, password } = validationResult.data;
+
+  if (!email) {
+    return sendError(res, "Email is required", 400);
   }
 
   const emailNormalized = email.toLowerCase();
 
   // Check if user exists
   const user = await getUserByEmail(emailNormalized);
+
   if (!user) {
     return sendError(res, "Invalid email or password", 401);
+  }
+
+  // Check if email is verified before allowing login
+  if (!user.isEmailVerified) {
+    return sendError(
+      res,
+      "Please verify your email before signing in. Check your inbox for the verification link.",
+      403,
+    );
   }
 
   // Compare the provided password with the stored hashed password
@@ -135,6 +153,53 @@ export const signIn = asyncHandler(async (req: Request, res: Response) => {
   return sendSuccess(
     res,
     { userId: user.id, token } as any,
-    "User signed in successfully",
+    "User logged in successfully",
   );
 });
+
+// Controller for handling email verification
+export const verifyEmail = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { token } = req.query;
+
+    // Validate that token is provided
+    if (!token || typeof token !== "string") {
+      return sendError(res, "Verification token is required", 400);
+    }
+
+    // Hash the token to compare with stored hash
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+    // Find user with matching token and check expiry
+    const user = await verifyEmailToken(hashedToken);
+
+    if (!user) {
+      return sendError(
+        res,
+        "Invalid or expired verification token",
+        400,
+      );
+    }
+
+    // Check if token has expired
+    if (user.emailVerificationTokenExpiry && new Date() > user.emailVerificationTokenExpiry) {
+      return sendError(
+        res,
+        "Verification token has expired. Please request a new one.",
+        400,
+      );
+    }
+
+    // Check if already verified
+    if (user.isEmailVerified) {
+      return sendSuccess(res, null, "Email already verified", 200);
+    }
+
+    return sendSuccess(
+      res,
+      null,
+      "Email verified successfully. You can now sign in.",
+      200,
+    );
+  },
+);

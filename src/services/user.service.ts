@@ -46,3 +46,27 @@ export const storeVerificationToken = async (
     .where(eq(usersTable.id, userId))
     .returning();
 };
+
+// Verify email token and mark email as verified
+export const verifyEmailToken = async (hashedToken: string) => {
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.emailVerificationToken, hashedToken));
+
+  if (!user) {
+    return null;
+  }
+
+  // Update user to mark email as verified and clear the token
+  await db
+    .update(usersTable)
+    .set({
+      isEmailVerified: true,
+      emailVerificationToken: null,
+      emailVerificationTokenExpiry: null,
+    })
+    .where(eq(usersTable.id, user.id));
+
+  return user;
+};
