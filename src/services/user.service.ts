@@ -20,6 +20,15 @@ export const getUserById = async (id: number) => {
   return user;
 };
 
+// Get a user by their username
+export const getUserByUsername = async (username: string) => {
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.username, username));
+  return user;
+};
+
 // Create a new user in the database
 export const createUser = async (userData: {
   email: string;

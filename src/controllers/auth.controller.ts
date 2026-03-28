@@ -7,6 +7,7 @@ import {
 import {
   getUserByEmail,
   createUser,
+  getUserByUsername,
   storeVerificationToken,
   verifyEmailToken,
 } from "../services/user.service.js";
@@ -21,10 +22,9 @@ import {
 } from "../services/auth.service.js";
 import { sendEmail, emailContent } from "../utils/mail.js";
 import { APP_BASE_URL } from "../config/env.js";
-import type { ZodFormattedError } from "zod";
 import crypto from "crypto";
+import msConverter from "../utils/msConverter.js";
 // import logger from "../utils/logger.js"; // swap with your actual logger
-
 
 // Controller for handling user registration
 export const signUp = asyncHandler(async (req: Request, res: Response) => {
@@ -116,16 +116,20 @@ export const signIn = asyncHandler(async (req: Request, res: Response) => {
   }
 
   // Destructure the validated data
-  const { email, password } = validationResult.data;
+  const { username, email, password } = validationResult.data;
 
-  if (!email) {
-    return sendError(res, "Email is required", 400);
+  // Ensure that either email or username is provided
+  if (!email && !username) {
+    return sendError(res, "Email or username is required", 400);
   }
 
-  const emailNormalized = email.toLowerCase();
+  // Normalize email to lowercase if provided, otherwise use username for lookup
+  const emailNormalized = email ? email.toLowerCase() : undefined;
 
-  // Check if user exists
-  const user = await getUserByEmail(emailNormalized);
+  // Fetch the user from the database using email or username
+  const user = emailNormalized
+    ? await getUserByEmail(emailNormalized)
+    : await getUserByUsername(username as string);
 
   if (!user) {
     return sendError(res, "Invalid email or password", 401);
@@ -148,58 +152,74 @@ export const signIn = asyncHandler(async (req: Request, res: Response) => {
   }
 
   // Sign the access token with the user's ID and set an expiration time
-  const token = await generateAccessToken(user.id);
+  const accessToken = await generateAccessToken(user.id);
+
+  // Sign the refresh token with the user's ID and set a longer expiration time
+  const refreshToken = await generateRefreshToken(user.id);
+
+  const options = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production", // Use secure cookies in production
+    sameSite: "strict" as const, // Prevent CSRF
+  };
+
+  // Set tokens as HTTP-only cookies instead of exposing them in the response body
+  res.cookie("accessToken", accessToken, {
+    ...options,
+    maxAge: msConverter("15m"),
+  }); // 15 minutes
+  res.cookie("refreshToken", refreshToken, {
+    ...options,
+    maxAge: msConverter("7d"),
+  }); // 7 days
 
   return sendSuccess(
     res,
-    { userId: user.id, token } as any,
+    { userId: user.id, accessToken, refreshToken } as any,
     "User logged in successfully",
   );
 });
 
 // Controller for handling email verification
-export const verifyEmail = asyncHandler(
-  async (req: Request, res: Response) => {
-    const { token } = req.query;
+export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
+  const { token } = req.query;
 
-    // Validate that token is provided
-    if (!token || typeof token !== "string") {
-      return sendError(res, "Verification token is required", 400);
-    }
+  // Validate that token is provided
+  if (!token || typeof token !== "string") {
+    return sendError(res, "Verification token is required", 400);
+  }
 
-    // Hash the token to compare with stored hash
-    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+  // Hash the token to compare with stored hash
+  const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
 
-    // Find user with matching token and check expiry
-    const user = await verifyEmailToken(hashedToken);
+  // Find user with matching token and check expiry
+  const user = await verifyEmailToken(hashedToken);
 
-    if (!user) {
-      return sendError(
-        res,
-        "Invalid or expired verification token",
-        400,
-      );
-    }
+  if (!user) {
+    return sendError(res, "Invalid or expired verification token", 400);
+  }
 
-    // Check if token has expired
-    if (user.emailVerificationTokenExpiry && new Date() > user.emailVerificationTokenExpiry) {
-      return sendError(
-        res,
-        "Verification token has expired. Please request a new one.",
-        400,
-      );
-    }
-
-    // Check if already verified
-    if (user.isEmailVerified) {
-      return sendSuccess(res, null, "Email already verified", 200);
-    }
-
-    return sendSuccess(
+  // Check if token has expired
+  if (
+    user.emailVerificationTokenExpiry &&
+    new Date() > user.emailVerificationTokenExpiry
+  ) {
+    return sendError(
       res,
-      null,
-      "Email verified successfully. You can now sign in.",
-      200,
+      "Verification token has expired. Please request a new one.",
+      400,
     );
-  },
-);
+  }
+
+  // Check if already verified
+  if (user.isEmailVerified) {
+    return sendSuccess(res, null, "Email already verified", 200);
+  }
+
+  return sendSuccess(
+    res,
+    null,
+    "Email verified successfully. You can now sign in.",
+    200,
+  );
+});
