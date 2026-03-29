@@ -1,6 +1,7 @@
 import Mailgen from "mailgen";
 import nodemailer from "nodemailer";
 import { MAILTRAP_CONFIG, APP_NAME, APP_WEBSITE } from "../config/env.js";
+import AppError from "./AppError.js";
 
 // Function to send an email using Mailgen and Nodemailer
 const sendEmail = async (options: {
@@ -38,7 +39,7 @@ const sendEmail = async (options: {
   try {
     await transporter.sendMail(mail);
   } catch (error) {
-    throw new Error("Failed to send email. Please try again later.");
+    throw new AppError("Failed to send email. Please try again later.", 500);
   }
 };
 // Function to generate email content based on the type of email (welcome or forgot password)

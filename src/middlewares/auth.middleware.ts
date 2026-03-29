@@ -2,6 +2,7 @@ import asyncHandler from "../utils/asyncHandler.js";
 import jwt from "jsonwebtoken";
 import { type Request, type Response, type NextFunction } from "express";
 import { ACCESS_TOKEN_CONFIG } from "../config/env.js";
+import AppError from "../utils/AppError.js";
 
 // Extend the Express Request interface to include a userId property
 interface AuthenticatedRequest extends Request {
@@ -16,7 +17,7 @@ export const authMiddleware = asyncHandler(
       req.cookies?.accessToken || req.headers.authorization?.split(" ")[1];
 
     if (!token) {
-      return res.status(401).json({ message: "Unauthorized" });
+      throw new AppError("Unauthorized", 401);
     }
 
     try {
@@ -28,7 +29,7 @@ export const authMiddleware = asyncHandler(
       req.userId = decoded.id;
       next();
     } catch (err) {
-      return res.status(401).json({ message: "Unauthorized" });
+      throw new AppError("Unauthorized", 401);
     }
   },
 );
