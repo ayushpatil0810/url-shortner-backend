@@ -1,5 +1,4 @@
 import {
-  JWT_SECRET,
   ACCESS_TOKEN_CONFIG,
   REFRESH_TOKEN_CONFIG,
   SALT_ROUNDS,
@@ -7,11 +6,6 @@ import {
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
-
-// Define the structure of the JWT payload
-interface JwtPayload {
-  id: number;
-}
 
 // Hash a plain text password
 const hashPassword = async (password: string): Promise<string> => {
@@ -26,35 +20,18 @@ const comparePassword = async (
   return bcrypt.compare(password, hashedPassword);
 };
 
-// Verify a JWT and return the decoded payload if valid
-const verifyToken = async (token: string): Promise<JwtPayload | null> => {
-  try {
-    return jwt.verify(token, JWT_SECRET) as JwtPayload;
-  } catch (err) {
-    return null;
-  }
-};
-
 // Generate an access token for a user
 const generateAccessToken = async (userId: number): Promise<string> => {
-  return jwt.sign(
-    { id: userId },
-    ACCESS_TOKEN_CONFIG.secret,
-    {
-      expiresIn: ACCESS_TOKEN_CONFIG.expiresIn as string,
-    } as jwt.SignOptions,
-  );
+  return jwt.sign({ id: userId }, ACCESS_TOKEN_CONFIG.secret, {
+    expiresIn: ACCESS_TOKEN_CONFIG.expiresIn as string,
+  } as jwt.SignOptions);
 };
 
 // Generate a refresh token for a user
 const generateRefreshToken = async (userId: number): Promise<string> => {
-  return jwt.sign(
-    { id: userId },
-    REFRESH_TOKEN_CONFIG.secret,
-    {
-      expiresIn: REFRESH_TOKEN_CONFIG.expiresIn as string,
-    } as jwt.SignOptions,
-  );
+  return jwt.sign({ id: userId }, REFRESH_TOKEN_CONFIG.secret, {
+    expiresIn: REFRESH_TOKEN_CONFIG.expiresIn as string,
+  } as jwt.SignOptions);
 };
 
 // Generate a temporary token for a user
@@ -67,11 +44,34 @@ const generateTemporaryToken = async (
   return { hashedToken, token, expiry };
 };
 
+// Verify an access token and return the decoded payload if valid
+const verifyAccessToken = async (
+  token: string,
+): Promise<{ id: number } | null> => {
+  try {
+    return jwt.verify(token, ACCESS_TOKEN_CONFIG.secret) as { id: number };
+  } catch (err) {
+    return null;
+  }
+};
+
+// Verify a refresh token and return the decoded payload if valid
+const verifyRefreshToken = async (
+  token: string,
+): Promise<{ id: number } | null> => {
+  try {
+    return jwt.verify(token, REFRESH_TOKEN_CONFIG.secret) as { id: number };
+  } catch (err) {
+    return null;
+  }
+};
+
 export {
   hashPassword,
   comparePassword,
-  verifyToken,
   generateAccessToken,
   generateRefreshToken,
   generateTemporaryToken,
+  verifyAccessToken,
+  verifyRefreshToken,
 };

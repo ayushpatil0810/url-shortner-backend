@@ -1,13 +1,8 @@
 import asyncHandler from "../utils/asyncHandler.js";
-import jwt from "jsonwebtoken";
-import { type Request, type Response, type NextFunction } from "express";
-import { ACCESS_TOKEN_CONFIG } from "../config/env.js";
+import { type Response, type NextFunction } from "express";
 import AppError from "../utils/AppError.js";
-
-// Extend the Express Request interface to include a userId property
-interface AuthenticatedRequest extends Request {
-  userId?: number;
-}
+import { verifyAccessToken } from "../services/auth.service.js";
+import { type AuthenticatedRequest } from "../types/index.js";
 
 // Middleware to authenticate requests using JWT (checks cookies and Authorization header)
 export const authMiddleware = asyncHandler(
@@ -20,16 +15,15 @@ export const authMiddleware = asyncHandler(
       throw new AppError("Unauthorized", 401);
     }
 
-    try {
-      // Verify the token and extract the user ID
-      const decoded = jwt.verify(token, ACCESS_TOKEN_CONFIG.secret) as {
-        id: number;
-      };
-      // Attach the user ID to the request object for use in subsequent middleware or route handlers
-      req.userId = decoded.id;
-      next();
-    } catch (err) {
+    // Verify the token and extract the user ID
+    const decoded = await verifyAccessToken(token);
+
+    if (!decoded) {
       throw new AppError("Unauthorized", 401);
     }
+
+    // Attach the user ID to the request object for use in subsequent middleware or route handlers
+    req.userId = decoded.id;
+    next();
   },
 );

@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import logger from "../utils/logger.js";
 import AppError from "../utils/AppError.js";
+import { type ApiResponse } from "../types/index.js";
 
 // Global error handling middleware
 const errorHandler = (
@@ -28,7 +29,8 @@ const errorHandler = (
   });
 
   // Build response object
-  const response: any = {
+  const response: Partial<ApiResponse> = {
+    success: false,
     message: err.message,
   };
 
@@ -39,7 +41,7 @@ const errorHandler = (
 
   // Include stack trace in development for all errors, or only non-operational errors in production
   if (process.env.NODE_ENV !== "production") {
-    response.stack = err.stack;
+    (response as any).stack = err.stack;
   } else if (!isOperational) {
     // In production, hide details of non-operational errors (programmer errors)
     response.message = "Internal server error";

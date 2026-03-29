@@ -1,5 +1,5 @@
 import asyncHandler from "../utils/asyncHandler.js";
-import { type Request, type Response } from "express";
+import { type Response } from "express";
 import { sendError, sendSuccess } from "../utils/response.js";
 import {
   getUserById,
@@ -9,33 +9,52 @@ import {
 } from "../services/user.service.js";
 import { hashPassword, comparePassword } from "../services/auth.service.js";
 import AppError from "../utils/AppError.js";
+import {
+  updateProfileRequestSchema,
+  changePasswordRequestSchema,
+} from "../validations/request.validation.js";
+import { type AuthenticatedRequest } from "../types/index.js";
 
 // Get current user profile
-export const getProfile = asyncHandler(async (req: Request, res: Response) => {
-  const userId = (req as any).userId;
-
-  if (!userId) {
-    throw new AppError("Unauthorized", 401);
-  }
-
-  const user = await getUserById(userId);
-
-  if (!user) {
-    throw new AppError("User not found", 404);
-  }
-
-  return sendSuccess(res, user, "Profile retrieved successfully", 200);
-});
-
-// Update user profile
-export const updateProfile = asyncHandler(
-  async (req: Request, res: Response) => {
-    const userId = (req as any).userId;
-    const { username, email } = req.body;
+export const getProfile = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response) => {
+    const userId = req.userId;
 
     if (!userId) {
       throw new AppError("Unauthorized", 401);
     }
+
+    const user = await getUserById(userId);
+
+    if (!user) {
+      throw new AppError("User not found", 404);
+    }
+
+    return sendSuccess(res, user, "Profile retrieved successfully", 200);
+  },
+);
+
+// Update user profile
+export const updateProfile = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response) => {
+    const userId = req.userId;
+
+    if (!userId) {
+      throw new AppError("Unauthorized", 401);
+    }
+
+    // Validate request
+    const validationResult = updateProfileRequestSchema.safeParse(req.body);
+
+    if (!validationResult.success) {
+      throw new AppError(
+        "Invalid request data",
+        400,
+        validationResult.error.format(),
+      );
+    }
+
+    const { username, email } = validationResult.data;
 
     // Validate that at least one field is provided
     if (!username && !email) {
@@ -72,43 +91,40 @@ export const updateProfile = asyncHandler(
       throw new AppError("Failed to update profile", 500);
     }
 
-    return sendSuccess(
-      res,
-      updatedUser,
-      "Profile updated successfully",
-      200,
-    );
+    return sendSuccess(res, updatedUser, "Profile updated successfully", 200);
   },
 );
 
 // Change user password
 export const changePassword = asyncHandler(
-  async (req: Request, res: Response) => {
-    const userId = (req as any).userId;
-    const { currentPassword, newPassword } = req.body;
+  async (req: AuthenticatedRequest, res: Response) => {
+    const userId = req.userId;
 
     if (!userId) {
       throw new AppError("Unauthorized", 401);
     }
 
-    if (!currentPassword || !newPassword) {
+    // Validate request
+    const validationResult = changePasswordRequestSchema.safeParse(req.body);
+
+    if (!validationResult.success) {
       throw new AppError(
-        "Current password and new password are required",
+        "Invalid request data",
         400,
+        validationResult.error.format(),
       );
     }
 
-    if (newPassword.length < 8) {
-      throw new AppError("New password must be at least 8 characters", 400);
-    }
+    const { currentPassword, newPassword } = validationResult.data;
 
     // Get user with password to verify current password
-    const [user] = await (async () => {
-      const db = (await import("../config/database.js")).default;
-      const { usersTable } = await import("../models/index.js");
-      const { eq } = await import("drizzle-orm");
-      return db.select().from(usersTable).where(eq(usersTable.id, userId));
-    })();
+    const db = (await import("../config/database.js")).default;
+    const { usersTable } = await import("../models/index.js");
+    const { eq } = await import("drizzle-orm");
+    const [user] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, userId));
 
     if (!user) {
       throw new AppError("User not found", 404);
@@ -131,11 +147,6 @@ export const changePassword = asyncHandler(
     const { updatePassword } = await import("../services/user.service.js");
     await updatePassword(userId, hashedPassword);
 
-    return sendSuccess(
-      res,
-      null,
-      "Password changed successfully",
-      200,
-    );
+    return sendSuccess(res, null, "Password changed successfully", 200);
   },
 );

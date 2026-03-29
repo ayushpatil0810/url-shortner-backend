@@ -1,9 +1,10 @@
 import db from "../config/database.js";
 import { usersTable } from "../models/index.js";
 import { eq } from "drizzle-orm";
+import { type User, type SafeUser } from "../types/index.js";
 
 // Helper function to exclude password from user object
-const excludePassword = (user: any) => {
+const excludePassword = (user: User | null): SafeUser | null => {
   if (!user) return null;
   const { password, ...userWithoutPassword } = user;
   return userWithoutPassword;

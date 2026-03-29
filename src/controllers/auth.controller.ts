@@ -3,6 +3,8 @@ import { type Request, type Response } from "express";
 import {
   signupRequestSchema,
   signInRequestSchema,
+  forgotPasswordRequestSchema,
+  resetPasswordRequestSchema,
 } from "../validations/request.validation.js";
 import {
   getUserByEmail,
@@ -20,11 +22,11 @@ import {
 import { sendError, sendSuccess } from "../utils/response.js";
 import {
   hashPassword,
-  verifyToken,
   comparePassword,
   generateAccessToken,
   generateRefreshToken,
   generateTemporaryToken,
+  verifyRefreshToken as verifyRefreshTokenJWT,
 } from "../services/auth.service.js";
 import { sendEmail, emailContent } from "../utils/mail.js";
 import {
@@ -33,8 +35,8 @@ import {
   REFRESH_TOKEN_CONFIG,
 } from "../config/env.js";
 import crypto from "crypto";
-import jwt from "jsonwebtoken";
 import AppError from "../utils/AppError.js";
+import { type AuthenticatedRequest, type SafeUser } from "../types/index.js";
 
 // Controller for handling user registration
 export const signUp = asyncHandler(async (req: Request, res: Response) => {
@@ -188,51 +190,53 @@ export const signIn = asyncHandler(async (req: Request, res: Response) => {
 
   return sendSuccess(
     res,
-    { userId: user.id, accessToken, refreshToken } as any,
+    { userId: user.id },
     "User logged in successfully",
   );
 });
 
 // Controller for handling user logout
-export const logout = asyncHandler(async (req: Request, res: Response) => {
-  const options = {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict" as const,
-  };
+export const logout = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response) => {
+    const options = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict" as const,
+    };
 
-  // Get userId from request (set by authMiddleware)
-  const userId = (req as any).userId;
-  
-  // Clear refresh token from database
-  if (userId) {
-    await clearRefreshToken(userId);
-  }
+    // Get userId from request (set by authMiddleware)
+    const userId = req.userId;
 
-  // Clear auth cookies so browser clients are logged out immediately
-  res.clearCookie("accessToken", options);
-  res.clearCookie("refreshToken", options);
+    // Clear refresh token from database
+    if (userId) {
+      await clearRefreshToken(userId);
+    }
 
-  return sendSuccess(res, null, "User logged out successfully", 200);
-});
+    // Clear auth cookies so browser clients are logged out immediately
+    res.clearCookie("accessToken", options);
+    res.clearCookie("refreshToken", options);
+
+    return sendSuccess(res, null, "User logged out successfully", 200);
+  },
+);
 
 // Controller for refreshing access token
 export const refreshAccessToken = asyncHandler(
   async (req: Request, res: Response) => {
     // Get refresh token from cookies or body
-    const refreshToken =
-      req.cookies?.refreshToken || req.body?.refreshToken;
+    const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
 
     if (!refreshToken) {
       throw new AppError("Refresh token is required", 401);
     }
 
     try {
-      // Verify the refresh token
-      const decoded = jwt.verify(
-        refreshToken,
-        REFRESH_TOKEN_CONFIG.secret,
-      ) as { id: number };
+      // Verify the refresh token JWT
+      const decoded = await verifyRefreshTokenJWT(refreshToken);
+
+      if (!decoded) {
+        throw new AppError("Invalid or expired refresh token", 401);
+      }
 
       // Verify refresh token exists in database and hasn't expired
       const user = await verifyRefreshToken(decoded.id, refreshToken);
@@ -269,7 +273,7 @@ export const refreshAccessToken = asyncHandler(
 
       return sendSuccess(
         res,
-        { accessToken: newAccessToken, refreshToken: newRefreshToken },
+        { userId: user.id },
         "Token refreshed successfully",
         200,
       );
@@ -315,14 +319,19 @@ export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
 // Controller for handling forgot password request
 export const forgotPassword = asyncHandler(
   async (req: Request, res: Response) => {
-    const { email } = req.body;
+    // Validate request
+    const validationResult = forgotPasswordRequestSchema.safeParse(req.body);
 
-    if (!email) {
-      throw new AppError("Email is required", 400);
+    if (!validationResult.success) {
+      throw new AppError(
+        "Invalid request data",
+        400,
+        validationResult.error.format(),
+      );
     }
 
-    const emailNormalized = email.toLowerCase();
-    const user = await getUserByEmail(emailNormalized);
+    const { email } = validationResult.data;
+    const user = await getUserByEmail(email);
 
     // Always return success to prevent email enumeration
     if (!user) {
@@ -351,7 +360,7 @@ export const forgotPassword = asyncHandler(
 
     // Send password reset email
     await sendEmail({
-      to: emailNormalized,
+      to: email,
       subject: "Reset Your Password",
       mailgenContent: emailContent(
         user.username,
@@ -373,16 +382,21 @@ export const forgotPassword = asyncHandler(
 // Controller for handling password reset
 export const resetPassword = asyncHandler(
   async (req: Request, res: Response) => {
-    const { token } = req.query;
-    const { password } = req.body;
+    // Combine query and body for validation
+    const validationResult = resetPasswordRequestSchema.safeParse({
+      token: req.query.token,
+      newPassword: req.body.password,
+    });
 
-    if (!token || typeof token !== "string") {
-      throw new AppError("Reset token is required", 400);
+    if (!validationResult.success) {
+      throw new AppError(
+        "Invalid request data",
+        400,
+        validationResult.error.format(),
+      );
     }
 
-    if (!password || password.length < 8) {
-      throw new AppError("Password must be at least 8 characters", 400);
-    }
+    const { token, newPassword } = validationResult.data;
 
     // Hash the token to compare with stored hash
     const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
@@ -398,7 +412,7 @@ export const resetPassword = asyncHandler(
     }
 
     // Hash the new password
-    const hashedPassword = await hashPassword(password);
+    const hashedPassword = await hashPassword(newPassword);
 
     // Update the password and clear the reset token
     await updatePassword(user.id, hashedPassword);
