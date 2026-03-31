@@ -3,6 +3,7 @@ import {
   signUp,
   signIn,
   verifyEmail,
+  resendVerificationEmail,
   logout,
   refreshAccessToken,
   forgotPassword,
@@ -20,10 +21,9 @@ const router = express.Router();
 router.route("/signup").post(authRateLimiter, signUp);
 router.route("/signin").post(authRateLimiter, signIn);
 router.route("/verify-email").get(emailRateLimiter, verifyEmail);
+router.route("/resend-verification-email").post(emailRateLimiter, resendVerificationEmail);
 router.route("/refresh-token").post(refreshAccessToken);
-router
-  .route("/forgot-password")
-  .post(passwordResetRateLimiter, forgotPassword);
+router.route("/forgot-password").post(passwordResetRateLimiter, forgotPassword);
 router.route("/reset-password").post(passwordResetRateLimiter, resetPassword);
 
 // Protected routes would go below with authMiddleware applied individually

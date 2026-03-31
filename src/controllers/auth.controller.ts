@@ -188,11 +188,7 @@ export const signIn = asyncHandler(async (req: Request, res: Response) => {
     maxAge: REFRESH_TOKEN_CONFIG.expiresInMs,
   });
 
-  return sendSuccess(
-    res,
-    { userId: user.id },
-    "User logged in successfully",
-  );
+  return sendSuccess(res, { userId: user.id }, "User logged in successfully");
 });
 
 // Controller for handling user logout
@@ -315,6 +311,66 @@ export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
     200,
   );
 });
+
+// Controller for resending verification email
+export const resendVerificationEmail = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { email } = req.body;
+    if (!email) {
+      throw new AppError("Email is required", 400);
+    }
+
+    const emailNormalized = email.toLowerCase();
+    const user = await getUserByEmail(emailNormalized);
+
+    // Always return success to prevent email enumeration
+    if (!user) {
+      return sendSuccess(
+        res,
+        null,
+        "If that email exists, a new verification link has been sent.",
+        200,
+      );
+    }
+
+    // If already verified, no need to resend
+    if (user.isEmailVerified) {
+      throw new AppError("Email is already verified. Please sign in.", 400);
+    }
+
+    // Generate a new temporary token
+    const { hashedToken, token, expiry } = await generateTemporaryToken(
+      user.id,
+    );
+
+    // Overwrite the old token in the database
+    await storeVerificationToken(user.id, hashedToken, expiry);
+
+    if (!APP_BASE_URL) {
+      throw new AppError("APP_BASE_URL environment variable is not set", 500);
+    }
+
+    const verificationUrl = new URL("/api/v1/auth/verify-email", APP_BASE_URL);
+    verificationUrl.searchParams.set("token", token);
+
+    await sendEmail({
+      to: emailNormalized,
+      subject: "Verify Your Email",
+      mailgenContent: emailContent(
+        user.username,
+        "welcome",
+        verificationUrl.toString(),
+      ),
+    });
+
+    return sendSuccess(
+      res,
+      null,
+      "If that email exists, a new verification link has been sent.",
+      200,
+    );
+  },
+);
 
 // Controller for handling forgot password request
 export const forgotPassword = asyncHandler(

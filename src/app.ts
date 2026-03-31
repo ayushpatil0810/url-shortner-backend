@@ -2,7 +2,7 @@ import express, { type Application } from "express";
 import { CORS_ORIGIN } from "./config/env.js";
 import cors from "cors";
 import helmet from "helmet";
-import { authRouter, healthCheckRouter, userRouter } from "./routes/index.js";
+import { authRouter, healthCheckRouter, urlRouter, userRouter } from "./routes/index.js";
 import errorHandler from "./middlewares/errorHandler.js";
 import cookieParser from "cookie-parser";
 const app: Application = express();
@@ -28,9 +28,11 @@ app.use(
   }),
 );
 
+app.use("/api/v1", healthCheckRouter);
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/user", userRouter);
-app.use("/api/v1", healthCheckRouter);
+app.use("/api/v1/url", urlRouter);
+
 
 // Global error handler (must be last)
 app.use(errorHandler);

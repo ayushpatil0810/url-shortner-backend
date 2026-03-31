@@ -46,3 +46,8 @@ export const resetPasswordRequestSchema = z.object({
   token: z.string().min(1, "Token is required"),
   newPassword: passwordSchema,
 });
+
+export const shortenUrlRequestSchema = z.object({
+  originalUrl: z.string().url("Invalid URL format"),
+  shortCode: z.string().min(4).max(10).regex(/^[a-zA-Z0-9]+$/, "Short code must be alphanumeric").optional(),
+});
