@@ -100,6 +100,14 @@ export const redirectToUrl = asyncHandler(
       throw new AppError("URL not found", 404);
     }
 
+    // Increment click count
+
+    await db
+      .update(urlsTable)
+      .set({ clicks: urlRecord.clicks + 1 })
+      .where(eq(urlsTable.id, urlRecord.id))
+      .returning();
+
     // Redirect to the original URL
     return res.redirect(urlRecord.originalUrl);
   },
@@ -188,5 +196,39 @@ export const updateUrl = asyncHandler(
     }
 
     return sendSuccess(res, { url: urlRecord[0] }, "URL updated successfully");
+  },
+);
+
+// Controller for getting URL analytics (e.g., click count)
+
+export const getUrlAnalytics = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response) => {
+    const { shortCode } = req.params;
+    const userId = req.userId;
+
+    // Find the URL record based on the short code and user ID
+    const [urlRecord] = await db
+      .select()
+      .from(urlsTable)
+      .where(
+        and(
+          eq(urlsTable.shortCode, shortCode as string),
+          eq(urlsTable.userId, userId),
+        ),
+      );
+
+    if (!urlRecord) {
+      throw new AppError(
+        "URL not found or you don't have permission to view analytics",
+        404,
+      );
+    }
+
+    // For demonstration, we'll return the click count. In a real application, you might return more detailed analytics.
+    return sendSuccess(
+      res,
+      { analytics: { clickCount: urlRecord.clicks } },
+      "URL analytics retrieved successfully",
+    );
   },
 );

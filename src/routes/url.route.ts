@@ -5,6 +5,7 @@ import {
   getUserUrls,
   deleteUrl,
   updateUrl,
+  getUrlAnalytics,
 } from "../controllers/url.controller.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
 import { apiRateLimiter } from "../middlewares/rateLimiter.js";
@@ -14,6 +15,7 @@ const router = express.Router();
 // Protected routes (require authentication)
 router.post("/shorten", authMiddleware, apiRateLimiter, shortenUrl);
 router.get("/", authMiddleware, apiRateLimiter, getUserUrls);
+router.get("/analytics/:shortCode", authMiddleware, apiRateLimiter, getUrlAnalytics);
 router.patch("/:id", authMiddleware, apiRateLimiter, updateUrl);
 router.delete("/:id", authMiddleware, apiRateLimiter, deleteUrl);
 

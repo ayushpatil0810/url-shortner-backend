@@ -20,5 +20,7 @@ export const urlsTable = pgTable("urls", {
 
   isActive: boolean().notNull().default(true),
 
+  clicks: integer().notNull().default(0),
+
   createdAt: timestamp({ mode: "date" }).notNull().defaultNow(),
 });
