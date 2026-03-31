@@ -1,13 +1,23 @@
 import express from "express";
-const router = express.Router();
-import { shortenUrl, redirectToUrl } from "../controllers/url.controller.js";
+import {
+  shortenUrl,
+  redirectToUrl,
+  getUserUrls,
+  deleteUrl,
+  updateUrl,
+} from "../controllers/url.controller.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
 import { apiRateLimiter } from "../middlewares/rateLimiter.js";
 
-// Route to shorten a URL
-router.post("/shorten", authMiddleware, apiRateLimiter, shortenUrl);
+const router = express.Router();
 
-// Route to redirect to the original URL (Public route)
+// Protected routes (require authentication)
+router.post("/shorten", authMiddleware, apiRateLimiter, shortenUrl);
+router.get("/", authMiddleware, apiRateLimiter, getUserUrls);
+router.patch("/:id", authMiddleware, apiRateLimiter, updateUrl);
+router.delete("/:id", authMiddleware, apiRateLimiter, deleteUrl);
+
+// Public route - redirect to original URL (must be last to avoid conflicts)
 router.get("/:shortCode", redirectToUrl);
 
 export default router;

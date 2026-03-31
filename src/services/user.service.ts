@@ -35,6 +35,15 @@ export const getUserById = async (id: number) => {
   return user;
 };
 
+// Get a user by their ID with password (for password verification)
+export const getUserWithPassword = async (id: number) => {
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, id));
+  return user;
+};
+
 // Get a user by their username
 export const getUserByUsername = async (username: string) => {
   const [user] = await db

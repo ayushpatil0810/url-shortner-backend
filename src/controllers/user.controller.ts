@@ -6,6 +6,8 @@ import {
   updateUserProfile,
   getUserByEmail,
   getUserByUsername,
+  getUserWithPassword,
+  updatePassword as updateUserPassword,
 } from "../services/user.service.js";
 import { hashPassword, comparePassword } from "../services/auth.service.js";
 import AppError from "../utils/AppError.js";
@@ -101,7 +103,7 @@ export const changePassword = asyncHandler(
     const userId = req.userId;
 
     if (!userId) {
-      throw new AppError("Unauthorized", 401);
+      throw new AppError("Unauthorized - authentication required", 401);
     }
 
     // Validate request
@@ -109,7 +111,7 @@ export const changePassword = asyncHandler(
 
     if (!validationResult.success) {
       throw new AppError(
-        "Invalid request data",
+        "Invalid password data",
         400,
         validationResult.error.format(),
       );
@@ -118,13 +120,7 @@ export const changePassword = asyncHandler(
     const { currentPassword, newPassword } = validationResult.data;
 
     // Get user with password to verify current password
-    const db = (await import("../config/database.js")).default;
-    const { usersTable } = await import("../models/index.js");
-    const { eq } = await import("drizzle-orm");
-    const [user] = await db
-      .select()
-      .from(usersTable)
-      .where(eq(usersTable.id, userId));
+    const user = await getUserWithPassword(userId);
 
     if (!user) {
       throw new AppError("User not found", 404);
@@ -144,8 +140,7 @@ export const changePassword = asyncHandler(
     const hashedPassword = await hashPassword(newPassword);
 
     // Update password in database
-    const { updatePassword } = await import("../services/user.service.js");
-    await updatePassword(userId, hashedPassword);
+    await updateUserPassword(userId, hashedPassword);
 
     return sendSuccess(res, null, "Password changed successfully", 200);
   },

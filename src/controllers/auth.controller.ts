@@ -37,6 +37,7 @@ import {
 import crypto from "crypto";
 import AppError from "../utils/AppError.js";
 import { type AuthenticatedRequest, type SafeUser } from "../types/index.js";
+import logger from "../utils/logger.js";
 
 // Controller for handling user registration
 export const signUp = asyncHandler(async (req: Request, res: Response) => {
@@ -119,7 +120,7 @@ export const signIn = asyncHandler(async (req: Request, res: Response) => {
   // If validation fails, return a 400 error with details
   if (!validationResult.success) {
     throw new AppError(
-      "Invalid request data",
+      "Invalid sign-in credentials format",
       400,
       validationResult.error.format(),
     );
@@ -142,7 +143,7 @@ export const signIn = asyncHandler(async (req: Request, res: Response) => {
     : await getUserByUsername(username as string);
 
   if (!user) {
-    throw new AppError("Invalid email or password", 401);
+    throw new AppError("Invalid credentials", 401);
   }
 
   // Check if email is verified before allowing login
@@ -157,7 +158,7 @@ export const signIn = asyncHandler(async (req: Request, res: Response) => {
   const isPasswordValid = await comparePassword(password, user.password);
 
   if (!isPasswordValid) {
-    throw new AppError("Invalid email or password", 401);
+    throw new AppError("Invalid credentials", 401);
   }
 
   // Sign the access token with the user's ID and set an expiration time
@@ -174,8 +175,8 @@ export const signIn = asyncHandler(async (req: Request, res: Response) => {
 
   const options = {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production", // Use secure cookies in production
-    sameSite: "strict" as const, // Prevent CSRF
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict" as const,
   };
 
   // Set tokens as HTTP-only cookies instead of exposing them in the response body
@@ -188,7 +189,7 @@ export const signIn = asyncHandler(async (req: Request, res: Response) => {
     maxAge: REFRESH_TOKEN_CONFIG.expiresInMs,
   });
 
-  return sendSuccess(res, { userId: user.id }, "User logged in successfully");
+  return sendSuccess(res, { userId: user.id }, "Signed in successfully");
 });
 
 // Controller for handling user logout
@@ -212,7 +213,7 @@ export const logout = asyncHandler(
     res.clearCookie("accessToken", options);
     res.clearCookie("refreshToken", options);
 
-    return sendSuccess(res, null, "User logged out successfully", 200);
+    return sendSuccess(res, null, "Signed out successfully", 200);
   },
 );
 
@@ -249,6 +250,8 @@ export const refreshAccessToken = asyncHandler(
       const refreshTokenExpiry = new Date(
         Date.now() + REFRESH_TOKEN_CONFIG.expiresInMs,
       );
+
+      // Store new refresh token and invalidate old one
       await storeRefreshToken(user.id, newRefreshToken, refreshTokenExpiry);
 
       const options = {
@@ -274,7 +277,19 @@ export const refreshAccessToken = asyncHandler(
         200,
       );
     } catch (error) {
-      throw new AppError("Invalid refresh token", 401);
+      // Log the actual error for debugging
+      logger.error("Token refresh failed", {
+        error: error instanceof Error ? error.message : "Unknown error",
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+
+      // If it's already an AppError, rethrow it
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      // For any other error, return generic message
+      throw new AppError("Invalid or expired refresh token", 401);
     }
   },
 );
@@ -380,7 +395,7 @@ export const forgotPassword = asyncHandler(
 
     if (!validationResult.success) {
       throw new AppError(
-        "Invalid request data",
+        "Invalid email format",
         400,
         validationResult.error.format(),
       );
@@ -446,7 +461,7 @@ export const resetPassword = asyncHandler(
 
     if (!validationResult.success) {
       throw new AppError(
-        "Invalid request data",
+        "Invalid password reset data",
         400,
         validationResult.error.format(),
       );

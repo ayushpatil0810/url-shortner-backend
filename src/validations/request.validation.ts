@@ -49,5 +49,19 @@ export const resetPasswordRequestSchema = z.object({
 
 export const shortenUrlRequestSchema = z.object({
   originalUrl: z.string().url("Invalid URL format"),
-  shortCode: z.string().min(4).max(10).regex(/^[a-zA-Z0-9]+$/, "Short code must be alphanumeric").optional(),
+  shortCode: z
+    .string()
+    .min(4)
+    .max(10)
+    .regex(/^[a-zA-Z0-9]+$/, "Short code must be alphanumeric")
+    .optional(),
+});
+
+export const deleteUrlRequestSchema = z.object({
+  id: z.coerce.number().int().positive("Invalid URL ID"),
+});
+
+export const updateUrlRequestSchema = z.object({
+  id: z.coerce.number().int().positive("Invalid URL ID"),
+  originalUrl: z.string().min(1, "URL cannot be empty"),
 });
