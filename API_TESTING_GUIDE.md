@@ -14,20 +14,6 @@ http://localhost:3000/api/v1
 curl http://localhost:3000/api/v1/health
 ```
 
-**Expected Response:**
-```json
-{
-  "success": true,
-  "message": "Server is healthy",
-  "data": {
-    "status": "healthy",
-    "timestamp": "2024-03-28T12:00:00.000Z",
-    "uptime": 123.45,
-    "database": "connected"
-  }
-}
-```
-
 ---
 
 ## 2. Authentication Flow
@@ -43,24 +29,7 @@ curl -X POST http://localhost:3000/api/v1/auth/signup \
   }'
 ```
 
-**Expected Response:**
-```json
-{
-  "success": true,
-  "message": "Account created. Please check your email to verify your account before signing in.",
-  "data": {
-    "userId": 1
-  }
-}
-```
-
-### Verify Email
-```bash
-# Get token from email, then:
-curl http://localhost:3000/api/v1/auth/verify-email?token=YOUR_TOKEN_HERE
-```
-
-### Sign In
+### Sign In (save cookies)
 ```bash
 curl -X POST http://localhost:3000/api/v1/auth/signin \
   -H "Content-Type: application/json" \
@@ -71,86 +40,77 @@ curl -X POST http://localhost:3000/api/v1/auth/signin \
   }'
 ```
 
-**Expected Response:**
-```json
-{
-  "success": true,
-  "message": "User logged in successfully",
-  "data": {
-    "userId": 1,
-    "accessToken": "eyJhbGc...",
-    "refreshToken": "eyJhbGc..."
-  }
-}
+---
+
+## 3. URL Shortener (Authenticated)
+
+### Shorten a URL
+```bash
+curl -X POST http://localhost:3000/api/v1/url/shorten \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{
+    "originalUrl": "https://www.google.com"
+  }'
 ```
 
-> Note: Tokens are also set as HTTP-only cookies
-
-### Refresh Token
+### Shorten a URL with Custom Code
 ```bash
-curl -X POST http://localhost:3000/api/v1/auth/refresh-token \
+curl -X POST http://localhost:3000/api/v1/url/shorten \
+  -H "Content-Type: application/json" \
   -b cookies.txt \
-  -c cookies.txt
+  -d '{
+    "originalUrl": "https://www.github.com",
+    "shortCode": "my-git"
+  }'
+```
+
+### List Your URLs
+```bash
+curl http://localhost:3000/api/v1/url/ \
+  -b cookies.txt
+```
+
+### Get URL Analytics
+```bash
+curl http://localhost:3000/api/v1/url/analytics/my-git \
+  -b cookies.txt
+```
+
+### Update a URL
+```bash
+curl -X PATCH http://localhost:3000/api/v1/url/1 \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{
+    "originalUrl": "https://www.microsoft.com"
+  }'
+```
+
+### Delete a URL
+```bash
+curl -X DELETE http://localhost:3000/api/v1/url/1 \
+  -b cookies.txt
 ```
 
 ---
 
-## 3. Password Management
+## 4. Redirection (Public)
 
-### Forgot Password
+### Redirect to Original URL
 ```bash
-curl -X POST http://localhost:3000/api/v1/auth/forgot-password \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "john@example.com"
-  }'
-```
-
-### Reset Password
-```bash
-# Get token from email, then:
-curl -X POST "http://localhost:3000/api/v1/auth/reset-password?token=YOUR_TOKEN_HERE" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "password": "NewSecurePass123"
-  }'
-```
-
-### Change Password (Authenticated)
-```bash
-curl -X POST http://localhost:3000/api/v1/user/change-password \
-  -H "Content-Type: application/json" \
-  -b cookies.txt \
-  -d '{
-    "currentPassword": "SecurePass123",
-    "newPassword": "NewSecurePass456"
-  }'
+# This will return a 302 redirect
+curl -i http://localhost:3000/api/v1/url/my-git
 ```
 
 ---
 
-## 4. User Profile Management
+## 5. User Profile Management
 
 ### Get Profile
 ```bash
 curl http://localhost:3000/api/v1/user/profile \
   -b cookies.txt
-```
-
-**Expected Response:**
-```json
-{
-  "success": true,
-  "message": "Profile retrieved successfully",
-  "data": {
-    "id": 1,
-    "username": "johndoe",
-    "email": "john@example.com",
-    "isEmailVerified": true,
-    "createdAt": "2024-03-28T10:00:00.000Z",
-    "updatedAt": "2024-03-28T10:00:00.000Z"
-  }
-}
 ```
 
 ### Update Profile
@@ -159,93 +119,29 @@ curl -X PATCH http://localhost:3000/api/v1/user/profile \
   -H "Content-Type: application/json" \
   -b cookies.txt \
   -d '{
-    "username": "johndoe_updated",
-    "email": "newemail@example.com"
+    "username": "johndoe_updated"
   }'
 ```
 
 ---
 
-## 5. Logout
+## 6. Logout
 
-### Logout
 ```bash
 curl -X POST http://localhost:3000/api/v1/auth/logout \
   -b cookies.txt \
   -c cookies.txt
 ```
 
-**Expected Response:**
-```json
-{
-  "success": true,
-  "message": "User logged out successfully",
-  "data": null
-}
-```
-
----
-
-## 📝 Testing with Authorization Header
-
-If you prefer Bearer tokens over cookies:
-
-```bash
-# Get the access token from signin response, then:
-curl http://localhost:3000/api/v1/user/profile \
-  -H "Authorization: Bearer YOUR_ACCESS_TOKEN_HERE"
-```
-
----
-
-## 🧪 Postman Collection
-
-Import this into Postman:
-
-```json
-{
-  "info": {
-    "name": "Auth Backend API",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
-  },
-  "variable": [
-    {
-      "key": "baseUrl",
-      "value": "http://localhost:3000/api/v1"
-    }
-  ]
-}
-```
-
 ---
 
 ## 🔍 Testing Rate Limits
 
-### Test Auth Rate Limit (5 requests/15min)
+### Test API Rate Limit (100 requests/15min)
 ```bash
-for i in {1..6}; do
+for i in {1..101}; do
   echo "Request $i:"
-  curl -X POST http://localhost:3000/api/v1/auth/signin \
-    -H "Content-Type: application/json" \
-    -d '{"email": "test@example.com", "password": "wrong"}'
-  echo "\n---"
-done
-```
-
-On 6th request, you should get:
-```json
-{
-  "message": "Too many authentication attempts, please try again later."
-}
-```
-
-### Test Password Reset Rate Limit (3 requests/hour)
-```bash
-for i in {1..4}; do
-  echo "Request $i:"
-  curl -X POST http://localhost:3000/api/v1/auth/forgot-password \
-    -H "Content-Type: application/json" \
-    -d '{"email": "test@example.com"}'
+  curl http://localhost:3000/api/v1/url/ -b cookies.txt
   echo "\n---"
 done
 ```
@@ -254,100 +150,11 @@ done
 
 ## 🛠️ Common Error Responses
 
-### 400 Bad Request
-```json
-{
-  "success": false,
-  "message": "Invalid request data",
-  "errors": {
-    "email": ["Invalid email"]
-  }
-}
-```
-
-### 401 Unauthorized
-```json
-{
-  "message": "Unauthorized"
-}
-```
-
-### 403 Forbidden
-```json
-{
-  "success": false,
-  "message": "Please verify your email before signing in. Check your inbox for the verification link."
-}
-```
-
-### 409 Conflict
-```json
-{
-  "success": false,
-  "message": "User already exists"
-}
-```
-
-### 429 Too Many Requests
-```json
-{
-  "message": "Too many authentication attempts, please try again later."
-}
-```
-
-### 503 Service Unavailable
-```json
-{
-  "success": false,
-  "message": "Service unhealthy",
-  "errors": {
-    "status": "unhealthy",
-    "database": "disconnected"
-  }
-}
-```
-
----
-
-## 🎯 Testing Checklist
-
-- [ ] Sign up new user
-- [ ] Verify email works
-- [ ] Sign in returns tokens
-- [ ] Access protected route with token
-- [ ] Refresh token works
-- [ ] Logout clears tokens
-- [ ] Forgot password sends email
-- [ ] Reset password works
-- [ ] Change password (authenticated)
-- [ ] Get profile works
-- [ ] Update profile works
-- [ ] Rate limits trigger correctly
-- [ ] Health check returns DB status
-- [ ] Invalid credentials rejected
-- [ ] Unverified email cannot login
-
----
-
-## 📦 Save Cookies in Files
-
-For testing flows that require multiple requests:
-
-```bash
-# Login and save cookies
-curl -X POST http://localhost:3000/api/v1/auth/signin \
-  -H "Content-Type: application/json" \
-  -c cookies.txt \
-  -d '{"email": "john@example.com", "password": "SecurePass123"}'
-
-# Use saved cookies
-curl http://localhost:3000/api/v1/user/profile -b cookies.txt
-
-# Logout (clears cookies)
-curl -X POST http://localhost:3000/api/v1/auth/logout \
-  -b cookies.txt \
-  -c cookies.txt
-```
+- **400 Bad Request:** Invalid URL or missing fields
+- **401 Unauthorized:** Missing or invalid session cookie
+- **404 Not Found:** Short code doesn't exist
+- **409 Conflict:** Custom short code already taken
+- **429 Too Many Requests:** Rate limit exceeded
 
 ---
 
