@@ -298,6 +298,14 @@ url-shortener/
 
 ---
 
+### 🧠 Note on Code & Comments
+
+This project was built as a learning exercise while transitioning to TypeScript.
+Some comments were added intentionally for clarity and understanding, occasionally refined with AI assistance for explanation quality.
+
+The implementation, architecture, and logic are fully written and structured by me.
+
+
 ## 📄 License
 
 This project is licensed under the ISC License.
