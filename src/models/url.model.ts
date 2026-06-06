@@ -4,10 +4,10 @@ import {
   pgTable,
   timestamp,
   varchar,
-} from "drizzle-orm/pg-core";
-import { usersTable } from "./user.model.js";
+} from 'drizzle-orm/pg-core';
+import { usersTable } from './user.model.js';
 
-export const urlsTable = pgTable("urls", {
+export const urlsTable = pgTable('urls', {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
 
   originalUrl: varchar({ length: 255 }).notNull(),
@@ -16,11 +16,11 @@ export const urlsTable = pgTable("urls", {
 
   userId: integer()
     .notNull()
-    .references(() => usersTable.id, { onDelete: "cascade" }),
+    .references(() => usersTable.id, { onDelete: 'cascade' }),
 
   isActive: boolean().notNull().default(true),
 
   clicks: integer().notNull().default(0),
 
-  createdAt: timestamp({ mode: "date" }).notNull().defaultNow(),
+  createdAt: timestamp({ mode: 'date' }).notNull().defaultNow(),
 });

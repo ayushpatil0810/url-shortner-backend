@@ -2,10 +2,10 @@ import {
   ACCESS_TOKEN_CONFIG,
   REFRESH_TOKEN_CONFIG,
   SALT_ROUNDS,
-} from "../config/env.js";
-import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
-import crypto from "crypto";
+} from '../config/env.js';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 
 // Hash a plain text password
 const hashPassword = async (password: string): Promise<string> => {
@@ -38,8 +38,8 @@ const generateRefreshToken = async (userId: number): Promise<string> => {
 const generateTemporaryToken = async (
   userId: number,
 ): Promise<{ hashedToken: string; token: string; expiry: Date }> => {
-  const token = crypto.randomBytes(32).toString("hex");
-  const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+  const token = crypto.randomBytes(32).toString('hex');
+  const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
   const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes from now
   return { hashedToken, token, expiry };
 };

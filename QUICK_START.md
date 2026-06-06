@@ -64,6 +64,7 @@ curl -X POST http://localhost:3000/api/v1/auth/logout -b cookies.txt
 - [ ] `MAILTRAP_*` - Email service credentials
 
 **Generate secrets:**
+
 ```bash
 node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 ```
@@ -72,16 +73,16 @@ node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 
 ## 🔑 All Routes at a Glance
 
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| POST | `/url/shorten` | ✅ | Shorten a URL |
-| GET | `/url/:shortCode` | ❌ | Redirect to original |
-| GET | `/url/` | ✅ | List user's URLs |
-| GET | `/url/analytics/:code` | ✅ | Get click count |
-| POST | `/auth/signup` | ❌ | Register user |
-| POST | `/auth/signin` | ❌ | Login |
-| GET | `/user/profile` | ✅ | Get profile |
-| GET | `/health` | ❌ | Health check |
+| Method | Endpoint               | Auth | Description          |
+| ------ | ---------------------- | ---- | -------------------- |
+| POST   | `/url/shorten`         | ✅   | Shorten a URL        |
+| GET    | `/url/:shortCode`      | ❌   | Redirect to original |
+| GET    | `/url/`                | ✅   | List user's URLs     |
+| GET    | `/url/analytics/:code` | ✅   | Get click count      |
+| POST   | `/auth/signup`         | ❌   | Register user        |
+| POST   | `/auth/signin`         | ❌   | Login                |
+| GET    | `/user/profile`        | ✅   | Get profile          |
+| GET    | `/health`              | ❌   | Health check         |
 
 ---
 

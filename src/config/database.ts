@@ -1,17 +1,22 @@
-import { DATABASE_URL } from "./env.js";
-import { drizzle } from "drizzle-orm/neon-http";
-import logger from "../utils/logger.js";
+import { DATABASE_URL } from './env.js';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import pg from 'pg';
+import logger from '../utils/logger.js';
 
-const db = drizzle(DATABASE_URL);
+const pool = new pg.Pool({
+  connectionString: DATABASE_URL,
+});
+
+const db = drizzle(pool);
 
 // Test database connection
 export const testDatabaseConnection = async (): Promise<boolean> => {
   try {
     // Simple query to test connection
-    await db.execute("SELECT 1");
+    await db.execute('SELECT 1');
     return true;
   } catch (error) {
-    logger.error("Database connection failed:", error);
+    logger.error('Database connection failed:', error);
     return false;
   }
 };

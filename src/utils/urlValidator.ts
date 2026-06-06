@@ -1,5 +1,5 @@
-import { URL_CONFIG } from "../config/constants.js";
-import AppError from "./AppError.js";
+import { URL_CONFIG } from '../config/constants.js';
+import AppError from './AppError.js';
 
 /**
  * Validates and normalizes a URL
@@ -19,8 +19,8 @@ export const validateAndNormalizeUrl = (url: string): string => {
   // Normalize URL: prepend https:// if no protocol
   let normalizedUrl = url;
   if (
-    !normalizedUrl.startsWith("http://") &&
-    !normalizedUrl.startsWith("https://")
+    !normalizedUrl.startsWith('http://') &&
+    !normalizedUrl.startsWith('https://')
   ) {
     normalizedUrl = `https://${normalizedUrl}`;
   }
@@ -30,13 +30,13 @@ export const validateAndNormalizeUrl = (url: string): string => {
     const urlObject = new URL(normalizedUrl);
 
     // Ensure valid protocol
-    if (!["http:", "https:"].includes(urlObject.protocol)) {
-      throw new AppError("URL must use HTTP or HTTPS protocol", 400);
+    if (!['http:', 'https:'].includes(urlObject.protocol)) {
+      throw new AppError('URL must use HTTP or HTTPS protocol', 400);
     }
 
     // Ensure hostname exists
     if (!urlObject.hostname) {
-      throw new AppError("URL must include a valid hostname", 400);
+      throw new AppError('URL must include a valid hostname', 400);
     }
 
     return normalizedUrl;
@@ -44,6 +44,6 @@ export const validateAndNormalizeUrl = (url: string): string => {
     if (error instanceof AppError) {
       throw error;
     }
-    throw new AppError("Invalid URL format", 400);
+    throw new AppError('Invalid URL format', 400);
   }
 };
