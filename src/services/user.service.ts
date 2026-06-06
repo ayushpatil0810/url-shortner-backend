@@ -1,7 +1,7 @@
-import db from "../config/database.js";
-import { usersTable } from "../models/index.js";
-import { eq } from "drizzle-orm";
-import { type User, type SafeUser } from "../types/index.js";
+import db from '../config/database.js';
+import { usersTable } from '../models/index.js';
+import { eq } from 'drizzle-orm';
+import { type User, type SafeUser } from '../types/index.js';
 
 // Helper function to exclude password from user object
 const excludePassword = (user: User | null): SafeUser | null => {
@@ -88,12 +88,12 @@ export const verifyEmailToken = async (hashedToken: string) => {
     .where(eq(usersTable.emailVerificationToken, hashedToken));
 
   if (!user || !user.emailVerificationTokenExpiry) {
-    return { user: null, error: "invalid" };
+    return { user: null, error: 'invalid' };
   }
 
   // Check if token has expired BEFORE updating
   if (new Date() > user.emailVerificationTokenExpiry) {
-    return { user: null, error: "expired" };
+    return { user: null, error: 'expired' };
   }
 
   // Update user to mark email as verified and clear the token

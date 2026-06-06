@@ -1,7 +1,7 @@
-import type { Request, Response, NextFunction } from "express";
-import logger from "../utils/logger.js";
-import AppError from "../utils/AppError.js";
-import { type ApiResponse } from "../types/index.js";
+import type { Request, Response, NextFunction } from 'express';
+import logger from '../utils/logger.js';
+import AppError from '../utils/AppError.js';
+import { type ApiResponse } from '../types/index.js';
 
 // Global error handling middleware
 const errorHandler = (
@@ -18,7 +18,7 @@ const errorHandler = (
   const errors = isAppError ? err.errors : null;
   const isOperational = isAppError ? err.isOperational : false;
 
-  logger.error("Error occurred:", {
+  logger.error('Error occurred:', {
     error: err.message,
     stack: err.stack,
     statusCode,
@@ -40,11 +40,11 @@ const errorHandler = (
   }
 
   // Include stack trace in development for all errors, or only non-operational errors in production
-  if (process.env.NODE_ENV !== "production") {
+  if (process.env.NODE_ENV !== 'production') {
     (response as any).stack = err.stack;
   } else if (!isOperational) {
     // In production, hide details of non-operational errors (programmer errors)
-    response.message = "Internal server error";
+    response.message = 'Internal server error';
   }
 
   res.status(statusCode).json(response);

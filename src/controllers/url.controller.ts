@@ -1,19 +1,24 @@
-import { and, eq } from "drizzle-orm";
-import { type Request, type Response } from "express";
-import db from "../config/database.js";
-import { urlsTable } from "../models/url.model.js";
-import type { AuthenticatedRequest } from "../types/index.js";
-import AppError from "../utils/AppError.js";
-import asyncHandler from "../utils/asyncHandler.js";
-import { sendSuccess } from "../utils/response.js";
+import { and, eq } from 'drizzle-orm';
+import { type Request, type Response } from 'express';
+import db from '../config/database.js';
+import { urlsTable } from '../models/url.model.js';
+import type { AuthenticatedRequest } from '../types/index.js';
+import AppError from '../utils/AppError.js';
+import asyncHandler from '../utils/asyncHandler.js';
+import { sendSuccess } from '../utils/response.js';
 import {
   shortenUrlRequestSchema,
   deleteUrlRequestSchema,
   updateUrlRequestSchema,
-} from "../validations/request.validation.js";
-import { nanoid } from "nanoid";
-import { validateAndNormalizeUrl } from "../utils/urlValidator.js";
-import { URL_CONFIG } from "../config/constants.js";
+} from '../validations/request.validation.js';
+import { nanoid } from 'nanoid';
+import { validateAndNormalizeUrl } from '../utils/urlValidator.js';
+import { URL_CONFIG } from '../config/constants.js';
+import {
+  recordClick,
+  getRedisAnalytics,
+  deleteAnalytics,
+} from '../services/analytics.service.js';
 
 // Controller for shortening a URL
 export const shortenUrl = asyncHandler(
@@ -22,7 +27,7 @@ export const shortenUrl = asyncHandler(
 
     if (!validationResult.success) {
       throw new AppError(
-        "Invalid request data",
+        'Invalid request data',
         400,
         validationResult.error.format(),
       );
@@ -53,18 +58,18 @@ export const shortenUrl = asyncHandler(
         return sendSuccess(
           res,
           { url: newUrl },
-          "URL shortened successfully",
+          'URL shortened successfully',
           201,
         );
       } catch (error: any) {
         // If user-provided code conflicts, fail immediately
-        if (error.code === "23505" && shortCode) {
-          throw new AppError("Short code already exists", 409);
+        if (error.code === '23505' && shortCode) {
+          throw new AppError('Short code already exists', 409);
         }
 
         // If auto-generated code conflicts, retry
         if (
-          error.code === "23505" &&
+          error.code === '23505' &&
           !shortCode &&
           attempts < URL_CONFIG.MAX_RETRY_ATTEMPTS
         ) {
@@ -72,8 +77,8 @@ export const shortenUrl = asyncHandler(
         }
 
         // Max retries exhausted for auto-generated code
-        if (error.code === "23505") {
-          throw new AppError("Failed to generate unique short code", 500);
+        if (error.code === '23505') {
+          throw new AppError('Failed to generate unique short code', 500);
         }
 
         throw error;
@@ -81,7 +86,7 @@ export const shortenUrl = asyncHandler(
     }
 
     // This should never be reached, but ensures all code paths return
-    throw new AppError("Failed to generate unique short code", 500);
+    throw new AppError('Failed to generate unique short code', 500);
   },
 );
 
@@ -97,16 +102,19 @@ export const redirectToUrl = asyncHandler(
       .where(eq(urlsTable.shortCode, shortCode as string));
 
     if (!urlRecord) {
-      throw new AppError("URL not found", 404);
+      throw new AppError('URL not found', 404);
     }
 
-    // Increment click count
+    // Record click in Redis (fire-and-forget — errors are caught inside the service)
+    recordClick(urlRecord.id);
 
-    await db
-      .update(urlsTable)
+    // Persist the click count to the DB as well (best-effort)
+    db.update(urlsTable)
       .set({ clicks: urlRecord.clicks + 1 })
       .where(eq(urlsTable.id, urlRecord.id))
-      .returning();
+      .catch((err: any) => {
+        console.error('[URL] Failed to increment DB click count:', err);
+      });
 
     // Redirect to the original URL
     return res.redirect(urlRecord.originalUrl);
@@ -122,7 +130,7 @@ export const getUserUrls = asyncHandler(
       .from(urlsTable)
       .where(eq(urlsTable.userId, userId));
 
-    return sendSuccess(res, { urls: userUrls }, "URLs retrieved successfully");
+    return sendSuccess(res, { urls: userUrls }, 'URLs retrieved successfully');
   },
 );
 
@@ -133,7 +141,7 @@ export const deleteUrl = asyncHandler(
 
     if (!validationResult.success) {
       throw new AppError(
-        "Invalid URL ID format",
+        'Invalid URL ID format',
         400,
         validationResult.error.format(),
       );
@@ -155,7 +163,10 @@ export const deleteUrl = asyncHandler(
       );
     }
 
-    return sendSuccess(res, null, "URL deleted successfully");
+    // Clean up Redis analytics keys for the deleted URL
+    deleteAnalytics(id);
+
+    return sendSuccess(res, null, 'URL deleted successfully');
   },
 );
 
@@ -169,7 +180,7 @@ export const updateUrl = asyncHandler(
 
     if (!validationResult.success) {
       throw new AppError(
-        "Invalid URL update data",
+        'Invalid URL update data',
         400,
         validationResult.error.format(),
       );
@@ -195,12 +206,11 @@ export const updateUrl = asyncHandler(
       );
     }
 
-    return sendSuccess(res, { url: urlRecord[0] }, "URL updated successfully");
+    return sendSuccess(res, { url: urlRecord[0] }, 'URL updated successfully');
   },
 );
 
-// Controller for getting URL analytics (e.g., click count)
-
+// Controller for getting URL analytics (click count + Redis real-time data)
 export const getUrlAnalytics = asyncHandler(
   async (req: AuthenticatedRequest, res: Response) => {
     const { shortCode } = req.params;
@@ -224,11 +234,29 @@ export const getUrlAnalytics = asyncHandler(
       );
     }
 
-    // For demonstration, we'll return the click count. In a real application, you might return more detailed analytics.
+    // Fetch real-time analytics from Redis
+    const redisData = await getRedisAnalytics(urlRecord.id);
+
     return sendSuccess(
       res,
-      { analytics: { clickCount: urlRecord.clicks } },
-      "URL analytics retrieved successfully",
+      {
+        analytics: {
+          // Prefer Redis click count as it is real-time; fall back to DB value
+          totalClicks: redisData.redisClicks || urlRecord.clicks,
+          dbClicks: urlRecord.clicks,
+          redisClicks: redisData.redisClicks,
+          lastAccessed: redisData.lastAccessed,
+          dailyStats: redisData.dailyStats,
+          url: {
+            id: urlRecord.id,
+            shortCode: urlRecord.shortCode,
+            originalUrl: urlRecord.originalUrl,
+            createdAt: urlRecord.createdAt,
+            isActive: urlRecord.isActive,
+          },
+        },
+      },
+      'URL analytics retrieved successfully',
     );
   },
 );

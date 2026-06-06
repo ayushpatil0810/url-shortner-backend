@@ -1,9 +1,9 @@
-import { type Response } from "express";
+import { type Response } from 'express';
 
 const sendSuccess = (
   res: Response,
   data: unknown = null,
-  message = "Success",
+  message = 'Success',
   statusCode = 200,
 ) => {
   return res.status(statusCode).json({
@@ -15,7 +15,7 @@ const sendSuccess = (
 
 const sendError = (
   res: Response,
-  message = "Something went wrong",
+  message = 'Something went wrong',
   statusCode = 500,
   errors: unknown = null,
 ) => {

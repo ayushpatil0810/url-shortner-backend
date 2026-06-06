@@ -1,6 +1,6 @@
-import asyncHandler from "../utils/asyncHandler.js";
-import { type Response } from "express";
-import { sendError, sendSuccess } from "../utils/response.js";
+import asyncHandler from '../utils/asyncHandler.js';
+import { type Response } from 'express';
+import { sendError, sendSuccess } from '../utils/response.js';
 import {
   getUserById,
   updateUserProfile,
@@ -8,14 +8,14 @@ import {
   getUserByUsername,
   getUserWithPassword,
   updatePassword as updateUserPassword,
-} from "../services/user.service.js";
-import { hashPassword, comparePassword } from "../services/auth.service.js";
-import AppError from "../utils/AppError.js";
+} from '../services/user.service.js';
+import { hashPassword, comparePassword } from '../services/auth.service.js';
+import AppError from '../utils/AppError.js';
 import {
   updateProfileRequestSchema,
   changePasswordRequestSchema,
-} from "../validations/request.validation.js";
-import { type AuthenticatedRequest } from "../types/index.js";
+} from '../validations/request.validation.js';
+import { type AuthenticatedRequest } from '../types/index.js';
 
 // Get current user profile
 export const getProfile = asyncHandler(
@@ -23,16 +23,16 @@ export const getProfile = asyncHandler(
     const userId = req.userId;
 
     if (!userId) {
-      throw new AppError("Unauthorized", 401);
+      throw new AppError('Unauthorized', 401);
     }
 
     const user = await getUserById(userId);
 
     if (!user) {
-      throw new AppError("User not found", 404);
+      throw new AppError('User not found', 404);
     }
 
-    return sendSuccess(res, user, "Profile retrieved successfully", 200);
+    return sendSuccess(res, user, 'Profile retrieved successfully', 200);
   },
 );
 
@@ -42,7 +42,7 @@ export const updateProfile = asyncHandler(
     const userId = req.userId;
 
     if (!userId) {
-      throw new AppError("Unauthorized", 401);
+      throw new AppError('Unauthorized', 401);
     }
 
     // Validate request
@@ -50,7 +50,7 @@ export const updateProfile = asyncHandler(
 
     if (!validationResult.success) {
       throw new AppError(
-        "Invalid request data",
+        'Invalid request data',
         400,
         validationResult.error.format(),
       );
@@ -61,7 +61,7 @@ export const updateProfile = asyncHandler(
     // Validate that at least one field is provided
     if (!username && !email) {
       throw new AppError(
-        "At least one field (username or email) is required",
+        'At least one field (username or email) is required',
         400,
       );
     }
@@ -71,7 +71,7 @@ export const updateProfile = asyncHandler(
       const emailNormalized = email.toLowerCase();
       const existingUser = await getUserByEmail(emailNormalized);
       if (existingUser && existingUser.id !== userId) {
-        throw new AppError("Email already in use", 409);
+        throw new AppError('Email already in use', 409);
       }
     }
 
@@ -79,7 +79,7 @@ export const updateProfile = asyncHandler(
     if (username) {
       const existingUser = await getUserByUsername(username);
       if (existingUser && existingUser.id !== userId) {
-        throw new AppError("Username already in use", 409);
+        throw new AppError('Username already in use', 409);
       }
     }
 
@@ -90,10 +90,10 @@ export const updateProfile = asyncHandler(
     const updatedUser = await updateUserProfile(userId, updates);
 
     if (!updatedUser) {
-      throw new AppError("Failed to update profile", 500);
+      throw new AppError('Failed to update profile', 500);
     }
 
-    return sendSuccess(res, updatedUser, "Profile updated successfully", 200);
+    return sendSuccess(res, updatedUser, 'Profile updated successfully', 200);
   },
 );
 
@@ -103,7 +103,7 @@ export const changePassword = asyncHandler(
     const userId = req.userId;
 
     if (!userId) {
-      throw new AppError("Unauthorized - authentication required", 401);
+      throw new AppError('Unauthorized - authentication required', 401);
     }
 
     // Validate request
@@ -111,7 +111,7 @@ export const changePassword = asyncHandler(
 
     if (!validationResult.success) {
       throw new AppError(
-        "Invalid password data",
+        'Invalid password data',
         400,
         validationResult.error.format(),
       );
@@ -123,7 +123,7 @@ export const changePassword = asyncHandler(
     const user = await getUserWithPassword(userId);
 
     if (!user) {
-      throw new AppError("User not found", 404);
+      throw new AppError('User not found', 404);
     }
 
     // Verify current password
@@ -133,7 +133,7 @@ export const changePassword = asyncHandler(
     );
 
     if (!isPasswordValid) {
-      throw new AppError("Current password is incorrect", 401);
+      throw new AppError('Current password is incorrect', 401);
     }
 
     // Hash new password
@@ -142,6 +142,6 @@ export const changePassword = asyncHandler(
     // Update password in database
     await updateUserPassword(userId, hashedPassword);
 
-    return sendSuccess(res, null, "Password changed successfully", 200);
+    return sendSuccess(res, null, 'Password changed successfully', 200);
   },
 );

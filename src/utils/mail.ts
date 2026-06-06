@@ -1,7 +1,7 @@
-import Mailgen from "mailgen";
-import nodemailer from "nodemailer";
-import { MAILTRAP_CONFIG, APP_NAME, APP_WEBSITE } from "../config/env.js";
-import AppError from "./AppError.js";
+import Mailgen from 'mailgen';
+import nodemailer from 'nodemailer';
+import { MAILTRAP_CONFIG, APP_NAME, APP_WEBSITE } from '../config/env.js';
+import AppError from './AppError.js';
 
 // Function to send an email using Mailgen and Nodemailer
 const sendEmail = async (options: {
@@ -10,7 +10,7 @@ const sendEmail = async (options: {
   mailgenContent: any;
 }) => {
   const mailgenerator = new Mailgen({
-    theme: "default",
+    theme: 'default',
     product: {
       name: APP_NAME,
       link: APP_WEBSITE,
@@ -39,13 +39,13 @@ const sendEmail = async (options: {
   try {
     await transporter.sendMail(mail);
   } catch (error) {
-    throw new AppError("Failed to send email. Please try again later.", 500);
+    throw new AppError('Failed to send email. Please try again later.', 500);
   }
 };
 // Function to generate email content based on the type of email (welcome or forgot password)
 const emailContent = (
   username: string,
-  emailType: "forgot" | "welcome",
+  emailType: 'forgot' | 'welcome',
   verificationLink?: string,
   passwordResetLink?: string,
 ) => {
@@ -53,25 +53,25 @@ const emailContent = (
     body: {
       name: username,
       intro:
-        emailType === "welcome"
+        emailType === 'welcome'
           ? "Welcome to our service! We're excited to have you on board."
-          : "You have requested to reset your password.",
+          : 'You have requested to reset your password.',
       action: {
         instructions:
-          emailType === "welcome"
-            ? "To verify your email address, please click the button below:"
-            : "To reset your password, please click the button below:",
+          emailType === 'welcome'
+            ? 'To verify your email address, please click the button below:'
+            : 'To reset your password, please click the button below:',
         button: {
-          color: emailType === "welcome" ? "#22BC66" : "#FF6136",
-          text: emailType === "welcome" ? "Verify Email" : "Reset Password",
+          color: emailType === 'welcome' ? '#22BC66' : '#FF6136',
+          text: emailType === 'welcome' ? 'Verify Email' : 'Reset Password',
           link:
-            emailType === "welcome"
-              ? verificationLink || "https://yourapp.com/verify-email"
-              : passwordResetLink || "https://yourapp.com/reset-password",
+            emailType === 'welcome'
+              ? verificationLink || 'https://yourapp.com/verify-email'
+              : passwordResetLink || 'https://yourapp.com/reset-password',
         },
       },
       outro:
-        "If you have any questions, feel free to reach out to our support team.",
+        'If you have any questions, feel free to reach out to our support team.',
     },
   };
 };
