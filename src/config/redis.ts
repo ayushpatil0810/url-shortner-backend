@@ -1,5 +1,6 @@
 import { REDIS_URL } from './env.js';
 import { Redis } from 'ioredis';
+import logger from '../utils/logger.js';
 
 const redis = new Redis(REDIS_URL, {
   retryStrategy(times: number) {
@@ -16,11 +17,11 @@ const redis = new Redis(REDIS_URL, {
 });
 
 redis.on('connect', () => {
-  console.log('✅ Redis connected');
+  logger.info('Redis connected');
 });
 
-redis.on('error', (err) => {
-  console.error('❌ Redis connection error:', err.message);
+redis.on('error', (err: Error) => {
+  logger.error('Redis connection error', { message: err.message });
 });
 
 export default redis;

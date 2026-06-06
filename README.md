@@ -191,7 +191,7 @@ cp .env.sample .env
 DATABASE_URL=postgresql://user:password@host:5432/dbname
 
 # Server
-PORT=8000
+PORT=3000
 NODE_ENV=development
 
 # JWT
@@ -201,7 +201,7 @@ ACCESS_TOKEN_EXPIRY=15m
 REFRESH_TOKEN_EXPIRY=7d
 
 # Application
-APP_BASE_URL=http://localhost:8000
+APP_BASE_URL=http://localhost:3000
 APP_NAME=URL Shortener
 APP_WEBSITE=https://yourapp.com
 CORS_ORIGIN=http://localhost:3000
@@ -258,7 +258,7 @@ The email worker starts automatically alongside the HTTP server.
 ### Base URL
 
 ```
-http://localhost:8000/api/v1
+http://localhost:3000/api/v1
 ```
 
 ### URL Endpoints
