@@ -1,14 +1,8 @@
-import db from '../config/database.js';
-import { usersTable } from '../models/index.js';
-import { eq } from 'drizzle-orm';
-import { type User, type SafeUser } from '../types/index.js';
+import db from "../config/database.js";
+import { usersTable } from "../models/index.js";
+import { eq } from "drizzle-orm";
+import AppError from "../utils/AppError.js";
 
-// Helper function to exclude password from user object
-const excludePassword = (user: User | null): SafeUser | null => {
-  if (!user) return null;
-  const { password, ...userWithoutPassword } = user;
-  return userWithoutPassword;
-};
 
 // Get a user by their email address
 export const getUserByEmail = async (email: string) => {
@@ -221,4 +215,35 @@ export const updateUserProfile = async (
       updatedAt: usersTable.updatedAt,
     });
   return updatedUser;
+};
+
+/**
+ * Validates that a new email/username are not already taken by a different user.
+ * Throws an AppError (409) for any conflict.
+ * Returns the normalised { username?, email? } update object ready for DB write.
+ */
+export const validateProfileUpdates = async (
+  userId: number,
+  raw: { username?: string; email?: string },
+): Promise<{ username?: string; email?: string }> => {
+  const updates: { username?: string; email?: string } = {};
+
+  if (raw.email) {
+    const emailNormalized = raw.email.toLowerCase();
+    const existing = await getUserByEmail(emailNormalized);
+    if (existing && existing.id !== userId) {
+      throw new AppError("Email already in use", 409);
+    }
+    updates.email = emailNormalized;
+  }
+
+  if (raw.username) {
+    const existing = await getUserByUsername(raw.username);
+    if (existing && existing.id !== userId) {
+      throw new AppError("Username already in use", 409);
+    }
+    updates.username = raw.username.toLowerCase();
+  }
+
+  return updates;
 };

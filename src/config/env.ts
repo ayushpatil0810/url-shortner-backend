@@ -33,7 +33,6 @@ if (missingEnvVars.length > 0) {
 
 const DATABASE_URL = process.env.DATABASE_URL as string;
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET as string;
 const SALT_ROUNDS = parseInt(process.env.SALT_ROUNDS as string, 10) || 10;
 const CORS_ORIGIN = process.env.CORS_ORIGIN as string;
 const APP_BASE_URL = process.env.APP_BASE_URL as string;
@@ -71,7 +70,6 @@ const MAILTRAP_CONFIG = {
 export {
   DATABASE_URL,
   PORT,
-  JWT_SECRET,
   SALT_ROUNDS,
   CORS_ORIGIN,
   MAILTRAP_CONFIG,

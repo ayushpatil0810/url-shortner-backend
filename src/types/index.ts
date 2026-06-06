@@ -21,9 +21,3 @@ export interface ApiResponse<T = unknown> {
   errors?: Record<string, unknown>;
 }
 
-// JWT payload structure
-export interface JwtPayload {
-  id: number;
-  iat?: number;
-  exp?: number;
-}

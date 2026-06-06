@@ -2,10 +2,12 @@ import {
   ACCESS_TOKEN_CONFIG,
   REFRESH_TOKEN_CONFIG,
   SALT_ROUNDS,
-} from '../config/env.js';
-import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
+} from "../config/env.js";
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
+import crypto from "crypto";
+import { type Response } from "express";
+import { storeRefreshToken } from "./user.service.js";
 
 // Hash a plain text password
 const hashPassword = async (password: string): Promise<string> => {
@@ -55,8 +57,8 @@ const verifyAccessToken = async (
   }
 };
 
-// Verify a refresh token and return the decoded payload if valid
-const verifyRefreshToken = async (
+// Verify a refresh token JWT signature and return the decoded payload if valid
+const verifyRefreshTokenJwt = async (
   token: string,
 ): Promise<{ id: number } | null> => {
   try {
@@ -66,6 +68,43 @@ const verifyRefreshToken = async (
   }
 };
 
+/** Returns the standard HTTP-only cookie options for auth cookies. */
+const buildCookieOptions = () => ({
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "strict" as const,
+});
+
+/**
+ * Generates a fresh access+refresh token pair, persists the refresh token in
+ * the database, and sets both tokens as HTTP-only cookies on the response.
+ * Returns the new tokens for callers that need them.
+ */
+const issueTokenPair = async (
+  userId: number,
+  res: Response,
+): Promise<{ accessToken: string; refreshToken: string }> => {
+  const accessToken = await generateAccessToken(userId);
+  const refreshToken = await generateRefreshToken(userId);
+
+  const refreshTokenExpiry = new Date(
+    Date.now() + REFRESH_TOKEN_CONFIG.expiresInMs,
+  );
+  await storeRefreshToken(userId, refreshToken, refreshTokenExpiry);
+
+  const cookieOptions = buildCookieOptions();
+  res.cookie("accessToken", accessToken, {
+    ...cookieOptions,
+    maxAge: ACCESS_TOKEN_CONFIG.expiresInMs,
+  });
+  res.cookie("refreshToken", refreshToken, {
+    ...cookieOptions,
+    maxAge: REFRESH_TOKEN_CONFIG.expiresInMs,
+  });
+
+  return { accessToken, refreshToken };
+};
+
 export {
   hashPassword,
   comparePassword,
@@ -73,5 +112,7 @@ export {
   generateRefreshToken,
   generateTemporaryToken,
   verifyAccessToken,
-  verifyRefreshToken,
+  verifyRefreshTokenJwt,
+  buildCookieOptions,
+  issueTokenPair,
 };

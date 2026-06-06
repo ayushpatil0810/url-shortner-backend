@@ -1,13 +1,12 @@
 import asyncHandler from '../utils/asyncHandler.js';
 import { type Response } from 'express';
-import { sendError, sendSuccess } from '../utils/response.js';
+import { sendSuccess } from '../utils/response.js';
 import {
   getUserById,
   updateUserProfile,
-  getUserByEmail,
-  getUserByUsername,
   getUserWithPassword,
   updatePassword as updateUserPassword,
+  validateProfileUpdates,
 } from '../services/user.service.js';
 import { hashPassword, comparePassword } from '../services/auth.service.js';
 import AppError from '../utils/AppError.js';
@@ -17,17 +16,27 @@ import {
 } from '../validations/request.validation.js';
 import { type AuthenticatedRequest } from '../types/index.js';
 
+// ---------------------------------------------------------------------------
+// Private helpers
+// ---------------------------------------------------------------------------
+
+/** Throws 401 if userId is missing (guards all authenticated handlers). */
+function requireUserId(userId: number | undefined): asserts userId is number {
+  if (!userId) {
+    throw new AppError('Unauthorized', 401);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Controllers
+// ---------------------------------------------------------------------------
+
 // Get current user profile
 export const getProfile = asyncHandler(
   async (req: AuthenticatedRequest, res: Response) => {
-    const userId = req.userId;
+    requireUserId(req.userId);
 
-    if (!userId) {
-      throw new AppError('Unauthorized', 401);
-    }
-
-    const user = await getUserById(userId);
-
+    const user = await getUserById(req.userId);
     if (!user) {
       throw new AppError('User not found', 404);
     }
@@ -39,15 +48,9 @@ export const getProfile = asyncHandler(
 // Update user profile
 export const updateProfile = asyncHandler(
   async (req: AuthenticatedRequest, res: Response) => {
-    const userId = req.userId;
+    requireUserId(req.userId);
 
-    if (!userId) {
-      throw new AppError('Unauthorized', 401);
-    }
-
-    // Validate request
     const validationResult = updateProfileRequestSchema.safeParse(req.body);
-
     if (!validationResult.success) {
       throw new AppError(
         'Invalid request data',
@@ -58,7 +61,6 @@ export const updateProfile = asyncHandler(
 
     const { username, email } = validationResult.data;
 
-    // Validate that at least one field is provided
     if (!username && !email) {
       throw new AppError(
         'At least one field (username or email) is required',
@@ -66,29 +68,13 @@ export const updateProfile = asyncHandler(
       );
     }
 
-    // Check if new email already exists
-    if (email) {
-      const emailNormalized = email.toLowerCase();
-      const existingUser = await getUserByEmail(emailNormalized);
-      if (existingUser && existingUser.id !== userId) {
-        throw new AppError('Email already in use', 409);
-      }
-    }
+    // Validate uniqueness and normalise casing in one service call
+    const rawUpdates: { username?: string; email?: string } = {};
+    if (username !== undefined) rawUpdates.username = username;
+    if (email !== undefined) rawUpdates.email = email;
+    const updates = await validateProfileUpdates(req.userId, rawUpdates);
 
-    // Check if new username already exists
-    if (username) {
-      const existingUser = await getUserByUsername(username);
-      if (existingUser && existingUser.id !== userId) {
-        throw new AppError('Username already in use', 409);
-      }
-    }
-
-    const updates: { username?: string; email?: string } = {};
-    if (username) updates.username = username.toLowerCase();
-    if (email) updates.email = email.toLowerCase();
-
-    const updatedUser = await updateUserProfile(userId, updates);
-
+    const updatedUser = await updateUserProfile(req.userId, updates);
     if (!updatedUser) {
       throw new AppError('Failed to update profile', 500);
     }
@@ -100,15 +86,9 @@ export const updateProfile = asyncHandler(
 // Change user password
 export const changePassword = asyncHandler(
   async (req: AuthenticatedRequest, res: Response) => {
-    const userId = req.userId;
+    requireUserId(req.userId);
 
-    if (!userId) {
-      throw new AppError('Unauthorized - authentication required', 401);
-    }
-
-    // Validate request
     const validationResult = changePasswordRequestSchema.safeParse(req.body);
-
     if (!validationResult.success) {
       throw new AppError(
         'Invalid password data',
@@ -119,28 +99,21 @@ export const changePassword = asyncHandler(
 
     const { currentPassword, newPassword } = validationResult.data;
 
-    // Get user with password to verify current password
-    const user = await getUserWithPassword(userId);
-
+    const user = await getUserWithPassword(req.userId);
     if (!user) {
       throw new AppError('User not found', 404);
     }
 
-    // Verify current password
     const isPasswordValid = await comparePassword(
       currentPassword,
       user.password,
     );
-
     if (!isPasswordValid) {
       throw new AppError('Current password is incorrect', 401);
     }
 
-    // Hash new password
     const hashedPassword = await hashPassword(newPassword);
-
-    // Update password in database
-    await updateUserPassword(userId, hashedPassword);
+    await updateUserPassword(req.userId, hashedPassword);
 
     return sendSuccess(res, null, 'Password changed successfully', 200);
   },

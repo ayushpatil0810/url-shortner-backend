@@ -11,9 +11,8 @@ import {
   deleteUrlRequestSchema,
   updateUrlRequestSchema,
 } from '../validations/request.validation.js';
-import { nanoid } from 'nanoid';
 import { validateAndNormalizeUrl } from '../utils/urlValidator.js';
-import { URL_CONFIG } from '../config/constants.js';
+import { createShortUrl } from '../services/url.service.js';
 import {
   recordClick,
   getRedisAnalytics,
@@ -34,60 +33,10 @@ export const shortenUrl = asyncHandler(
       );
     }
 
-    let { originalUrl, shortCode } = validationResult.data;
+    const { originalUrl, shortCode } = validationResult.data;
+    const newUrl = await createShortUrl(originalUrl, req.userId, shortCode);
 
-    // Validate and normalize URL
-    const normalizedUrl = validateAndNormalizeUrl(originalUrl);
-
-    // Retry logic for auto-generated codes only
-    let attempts = 0;
-
-    while (attempts < URL_CONFIG.MAX_RETRY_ATTEMPTS) {
-      const finalShortCode = shortCode ?? nanoid(URL_CONFIG.SHORT_CODE_LENGTH);
-      attempts++;
-
-      try {
-        const [newUrl] = await db
-          .insert(urlsTable)
-          .values({
-            originalUrl: normalizedUrl,
-            shortCode: finalShortCode,
-            userId: req.userId,
-          })
-          .returning();
-
-        return sendSuccess(
-          res,
-          { url: newUrl },
-          'URL shortened successfully',
-          201,
-        );
-      } catch (error: any) {
-        // If user-provided code conflicts, fail immediately
-        if (error.code === '23505' && shortCode) {
-          throw new AppError('Short code already exists', 409);
-        }
-
-        // If auto-generated code conflicts, retry
-        if (
-          error.code === '23505' &&
-          !shortCode &&
-          attempts < URL_CONFIG.MAX_RETRY_ATTEMPTS
-        ) {
-          continue;
-        }
-
-        // Max retries exhausted for auto-generated code
-        if (error.code === '23505') {
-          throw new AppError('Failed to generate unique short code', 500);
-        }
-
-        throw error;
-      }
-    }
-
-    // This should never be reached, but ensures all code paths return
-    throw new AppError('Failed to generate unique short code', 500);
+    return sendSuccess(res, { url: newUrl }, 'URL shortened successfully', 201);
   },
 );
 
@@ -96,7 +45,6 @@ export const redirectToUrl = asyncHandler(
   async (req: Request, res: Response) => {
     const { shortCode } = req.params;
 
-    // Find the original URL based on the short code
     const [urlRecord] = await db
       .select()
       .from(urlsTable)
@@ -120,7 +68,6 @@ export const redirectToUrl = asyncHandler(
         });
       });
 
-    // Redirect to the original URL
     return res.redirect(urlRecord.originalUrl);
   },
 );
@@ -154,7 +101,6 @@ export const deleteUrl = asyncHandler(
     const { id } = validationResult.data;
     const userId = req.userId;
 
-    // Attempt to delete the URL record, ensuring it belongs to the authenticated user
     const urlRecord = await db
       .delete(urlsTable)
       .where(and(eq(urlsTable.id, id), eq(urlsTable.userId, userId)))
@@ -192,11 +138,8 @@ export const updateUrl = asyncHandler(
 
     const { id, originalUrl } = validationResult.data;
     const userId = req.userId;
-
-    // Validate and normalize URL
     const normalizedUrl = validateAndNormalizeUrl(originalUrl);
 
-    // Attempt to update the URL record, ensuring it belongs to the authenticated user
     const urlRecord = await db
       .update(urlsTable)
       .set({ originalUrl: normalizedUrl })
@@ -220,7 +163,6 @@ export const getUrlAnalytics = asyncHandler(
     const { shortCode } = req.params;
     const userId = req.userId;
 
-    // Find the URL record based on the short code and user ID
     const [urlRecord] = await db
       .select()
       .from(urlsTable)

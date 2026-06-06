@@ -12,39 +12,88 @@ import {
   getUserByUsername,
   storeVerificationToken,
   verifyEmailToken,
-  storeRefreshToken,
-  verifyRefreshToken,
   clearRefreshToken,
   storeForgotPasswordToken,
   verifyForgotPasswordToken,
   updatePassword,
+  verifyRefreshToken,
 } from '../services/user.service.js';
-import { sendError, sendSuccess } from '../utils/response.js';
+import { sendSuccess } from '../utils/response.js';
 import {
   hashPassword,
   comparePassword,
-  generateAccessToken,
-  generateRefreshToken,
   generateTemporaryToken,
-  verifyRefreshToken as verifyRefreshTokenJWT,
+  verifyRefreshTokenJwt,
+  issueTokenPair,
+  buildCookieOptions,
 } from '../services/auth.service.js';
 import { emailQueue } from '../queues/email.queue.js';
-import {
-  APP_BASE_URL,
-  ACCESS_TOKEN_CONFIG,
-  REFRESH_TOKEN_CONFIG,
-} from '../config/env.js';
+import { APP_BASE_URL } from '../config/env.js';
 import crypto from 'crypto';
 import AppError from '../utils/AppError.js';
-import { type AuthenticatedRequest, type SafeUser } from '../types/index.js';
+import { type AuthenticatedRequest } from '../types/index.js';
 import logger from '../utils/logger.js';
+
+// ---------------------------------------------------------------------------
+// Private helpers
+// ---------------------------------------------------------------------------
+
+/** SHA-256 hash of a plain-text token (for comparing with stored hashes). */
+const hashToken = (token: string): string =>
+  crypto.createHash("sha256").update(token).digest("hex");
+
+/**
+ * Builds the email-verification URL.
+ * Throws AppError 500 if APP_BASE_URL is missing so broken links are caught
+ * at runtime rather than silently sent.
+ */
+const buildVerificationUrl = (token: string): string => {
+  if (!APP_BASE_URL) {
+    throw new AppError("APP_BASE_URL environment variable is not set", 500);
+  }
+  const url = new URL("/api/v1/auth/verify-email", APP_BASE_URL);
+  url.searchParams.set("token", token);
+  return url.toString();
+};
+
+/** Generates a temporary token, stores its hash, and enqueues the verification email. */
+const sendVerificationLink = async (
+  userId: number,
+  username: string,
+  email: string,
+  type: 'welcome' | 'resend'
+): Promise<void> => {
+  const { hashedToken, token, expiry } = await generateTemporaryToken(userId);
+  await storeVerificationToken(userId, hashedToken, expiry);
+  const verificationUrl = buildVerificationUrl(token);
+  
+  const enqueuePromise = emailQueue.add(type, {
+    type,
+    to: email,
+    username,
+    verificationLink: verificationUrl.toString(),
+  });
+
+  if (type === 'welcome') {
+    enqueuePromise.catch((err) =>
+      logger.error('[SignUp] Failed to enqueue welcome email', {
+        userId,
+        error: err instanceof Error ? err.message : err,
+      }),
+    );
+  } else {
+    await enqueuePromise;
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Controllers
+// ---------------------------------------------------------------------------
 
 // Controller for handling user registration
 export const signUp = asyncHandler(async (req: Request, res: Response) => {
-  // Validate the incoming request data against the signup schema
   const validationResult = signupRequestSchema.safeParse(req.body);
 
-  // If validation fails, return a 400 error with details
   if (!validationResult.success) {
     throw new AppError(
       'Invalid request data',
@@ -53,20 +102,15 @@ export const signUp = asyncHandler(async (req: Request, res: Response) => {
     );
   }
 
-  // Destructure the validated data
   const { username, email, password } = validationResult.data;
   const emailNormalized = email.toLowerCase();
 
-  // Check if a user with the provided email already exists
   const existingUser = await getUserByEmail(emailNormalized);
   if (existingUser) {
     throw new AppError('User already exists', 409);
   }
 
-  // Hash the password before storing it in the database
   const hashedPassword = await hashPassword(password);
-
-  // Create the user in the database with email verification fields
   const newUser = await createUser({
     email: emailNormalized,
     password: hashedPassword,
@@ -78,38 +122,7 @@ export const signUp = asyncHandler(async (req: Request, res: Response) => {
     throw new AppError('Failed to create user', 500);
   }
 
-  // Generate a temporary token for email verification
-  const { hashedToken, token, expiry } = await generateTemporaryToken(
-    newUser.id,
-  );
-
-  // Store the hashed token and expiry in the database for later verification
-  await storeVerificationToken(newUser.id, hashedToken, expiry);
-
-  // Construct the verification URL to be sent in the email
-  if (!APP_BASE_URL) {
-    // Fail loudly at runtime rather than silently sending a broken link
-    throw new AppError('APP_BASE_URL environment variable is not set', 500);
-  }
-  // Use URL API to construct the verification link with query parameters
-  const verificationUrl = new URL('/api/v1/auth/verify-email', APP_BASE_URL);
-  verificationUrl.searchParams.set('token', token);
-
-  // Fire-and-forget — enqueue the welcome email without blocking the response.
-  // If the queue is unavailable the user is still created successfully.
-  emailQueue
-    .add('welcome', {
-      type: 'welcome',
-      to: emailNormalized,
-      username,
-      verificationLink: verificationUrl.toString(),
-    })
-    .catch((err) =>
-      logger.error('[SignUp] Failed to enqueue welcome email', {
-        userId: newUser.id,
-        error: err instanceof Error ? err.message : err,
-      }),
-    );
+  await sendVerificationLink(newUser.id, username, emailNormalized, 'welcome');
 
   return sendSuccess(
     res,
@@ -123,7 +136,6 @@ export const signUp = asyncHandler(async (req: Request, res: Response) => {
 export const signIn = asyncHandler(async (req: Request, res: Response) => {
   const validationResult = signInRequestSchema.safeParse(req.body);
 
-  // If validation fails, return a 400 error with details
   if (!validationResult.success) {
     throw new AppError(
       'Invalid sign-in credentials format',
@@ -132,18 +144,13 @@ export const signIn = asyncHandler(async (req: Request, res: Response) => {
     );
   }
 
-  // Destructure the validated data
   const { username, email, password } = validationResult.data;
 
-  // Ensure that either email or username is provided
   if (!email && !username) {
     throw new AppError('Email or username is required', 400);
   }
 
-  // Normalize email to lowercase if provided, otherwise use username for lookup
   const emailNormalized = email ? email.toLowerCase() : undefined;
-
-  // Fetch the user from the database using email or username
   const user = emailNormalized
     ? await getUserByEmail(emailNormalized)
     : await getUserByUsername(username as string);
@@ -152,40 +159,12 @@ export const signIn = asyncHandler(async (req: Request, res: Response) => {
     throw new AppError('Invalid credentials', 401);
   }
 
-  // Compare the provided password with the stored hashed password
   const isPasswordValid = await comparePassword(password, user.password);
-
   if (!isPasswordValid) {
     throw new AppError('Invalid credentials', 401);
   }
 
-  // Sign the access token with the user's ID and set an expiration time
-  const accessToken = await generateAccessToken(user.id);
-
-  // Sign the refresh token with the user's ID and set a longer expiration time
-  const refreshToken = await generateRefreshToken(user.id);
-
-  // Store refresh token in database
-  const refreshTokenExpiry = new Date(
-    Date.now() + REFRESH_TOKEN_CONFIG.expiresInMs,
-  );
-  await storeRefreshToken(user.id, refreshToken, refreshTokenExpiry);
-
-  const options = {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict' as const,
-  };
-
-  // Set tokens as HTTP-only cookies instead of exposing them in the response body
-  res.cookie('accessToken', accessToken, {
-    ...options,
-    maxAge: ACCESS_TOKEN_CONFIG.expiresInMs,
-  });
-  res.cookie('refreshToken', refreshToken, {
-    ...options,
-    maxAge: REFRESH_TOKEN_CONFIG.expiresInMs,
-  });
+  await issueTokenPair(user.id, res);
 
   // Include isEmailVerified so the frontend can nudge unverified users
   // without blocking their access
@@ -199,21 +178,13 @@ export const signIn = asyncHandler(async (req: Request, res: Response) => {
 // Controller for handling user logout
 export const logout = asyncHandler(
   async (req: AuthenticatedRequest, res: Response) => {
-    const options = {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict' as const,
-    };
-
-    // Get userId from request (set by authMiddleware)
     const userId = req.userId;
 
-    // Clear refresh token from database
     if (userId) {
       await clearRefreshToken(userId);
     }
 
-    // Clear auth cookies so browser clients are logged out immediately
+    const options = buildCookieOptions();
     res.clearCookie('accessToken', options);
     res.clearCookie('refreshToken', options);
 
@@ -224,7 +195,6 @@ export const logout = asyncHandler(
 // Controller for refreshing access token
 export const refreshAccessToken = asyncHandler(
   async (req: Request, res: Response) => {
-    // Get refresh token from cookies or body
     const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
 
     if (!refreshToken) {
@@ -232,47 +202,19 @@ export const refreshAccessToken = asyncHandler(
     }
 
     try {
-      // Verify the refresh token JWT
-      const decoded = await verifyRefreshTokenJWT(refreshToken);
-
+      const decoded = await verifyRefreshTokenJwt(refreshToken);
       if (!decoded) {
         throw new AppError('Invalid or expired refresh token', 401);
       }
 
-      // Verify refresh token exists in database and hasn't expired
+      // Verify the token also exists in the database (detects rotation attacks)
       const user = await verifyRefreshToken(decoded.id, refreshToken);
-
       if (!user) {
         throw new AppError('Invalid or expired refresh token', 401);
       }
 
-      // Generate new access token
-      const newAccessToken = await generateAccessToken(user.id);
-
-      // Generate new refresh token (token rotation)
-      const newRefreshToken = await generateRefreshToken(user.id);
-      const refreshTokenExpiry = new Date(
-        Date.now() + REFRESH_TOKEN_CONFIG.expiresInMs,
-      );
-
-      // Store new refresh token and invalidate old one
-      await storeRefreshToken(user.id, newRefreshToken, refreshTokenExpiry);
-
-      const options = {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict' as const,
-      };
-
-      // Set new tokens as cookies
-      res.cookie('accessToken', newAccessToken, {
-        ...options,
-        maxAge: ACCESS_TOKEN_CONFIG.expiresInMs,
-      });
-      res.cookie('refreshToken', newRefreshToken, {
-        ...options,
-        maxAge: REFRESH_TOKEN_CONFIG.expiresInMs,
-      });
+      // Issue a fresh pair (token rotation: old refresh token is replaced)
+      await issueTokenPair(user.id, res);
 
       return sendSuccess(
         res,
@@ -281,19 +223,16 @@ export const refreshAccessToken = asyncHandler(
         200,
       );
     } catch (error) {
-      // Log the actual error for debugging
-      logger.error('Token refresh failed', {
-        error: error instanceof Error ? error.message : 'Unknown error',
+      logger.error("Token refresh failed", {
+        error: error instanceof Error ? error.message : "Unknown error",
         stack: error instanceof Error ? error.stack : undefined,
       });
 
-      // If it's already an AppError, rethrow it
       if (error instanceof AppError) {
         throw error;
       }
 
-      // For any other error, return generic message
-      throw new AppError('Invalid or expired refresh token', 401);
+      throw new AppError("Invalid or expired refresh token", 401);
     }
   },
 );
@@ -302,15 +241,11 @@ export const refreshAccessToken = asyncHandler(
 export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
   const { token } = req.query;
 
-  // Validate that token is provided
-  if (!token || typeof token !== 'string') {
-    throw new AppError('Verification token is required', 400);
+  if (!token || typeof token !== "string") {
+    throw new AppError("Verification token is required", 400);
   }
 
-  // Hash the token to compare with stored hash
-  const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
-
-  // Find user with matching token and check expiry
+  const hashedToken = hashToken(token);
   const result = await verifyEmailToken(hashedToken);
 
   if (!result.user) {
@@ -352,33 +287,11 @@ export const resendVerificationEmail = asyncHandler(
       );
     }
 
-    // If already verified, no need to resend
     if (user.isEmailVerified) {
       throw new AppError('Email is already verified. Please sign in.', 400);
     }
 
-    // Generate a new temporary token
-    const { hashedToken, token, expiry } = await generateTemporaryToken(
-      user.id,
-    );
-
-    // Overwrite the old token in the database
-    await storeVerificationToken(user.id, hashedToken, expiry);
-
-    if (!APP_BASE_URL) {
-      throw new AppError('APP_BASE_URL environment variable is not set', 500);
-    }
-
-    const verificationUrl = new URL('/api/v1/auth/verify-email', APP_BASE_URL);
-    verificationUrl.searchParams.set('token', token);
-
-    // Enqueue the resend verification email
-    await emailQueue.add('resend', {
-      type: 'resend',
-      to: emailNormalized,
-      username: user.username,
-      verificationLink: verificationUrl.toString(),
-    });
+    await sendVerificationLink(user.id, user.username, emailNormalized, 'resend');
 
     return sendSuccess(
       res,
@@ -392,7 +305,6 @@ export const resendVerificationEmail = asyncHandler(
 // Controller for handling forgot password request
 export const forgotPassword = asyncHandler(
   async (req: Request, res: Response) => {
-    // Validate request
     const validationResult = forgotPasswordRequestSchema.safeParse(req.body);
 
     if (!validationResult.success) {
@@ -416,15 +328,11 @@ export const forgotPassword = asyncHandler(
       );
     }
 
-    // Generate a temporary token for password reset
     const { hashedToken, token, expiry } = await generateTemporaryToken(
       user.id,
     );
-
-    // Store the hashed token and expiry in the database
     await storeForgotPasswordToken(user.id, hashedToken, expiry);
 
-    // Construct the password reset URL
     if (!APP_BASE_URL) {
       throw new AppError('APP_BASE_URL environment variable is not set', 500);
     }
@@ -451,7 +359,6 @@ export const forgotPassword = asyncHandler(
 // Controller for handling password reset
 export const resetPassword = asyncHandler(
   async (req: Request, res: Response) => {
-    // Combine query and body for validation
     const validationResult = resetPasswordRequestSchema.safeParse({
       token: req.query.token,
       newPassword: req.body.password,
@@ -466,11 +373,7 @@ export const resetPassword = asyncHandler(
     }
 
     const { token, newPassword } = validationResult.data;
-
-    // Hash the token to compare with stored hash
-    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
-
-    // Verify the token
+    const hashedToken = hashToken(token);
     const user = await verifyForgotPasswordToken(hashedToken);
 
     if (!user) {
@@ -480,10 +383,7 @@ export const resetPassword = asyncHandler(
       );
     }
 
-    // Hash the new password
     const hashedPassword = await hashPassword(newPassword);
-
-    // Update the password and clear the reset token
     await updatePassword(user.id, hashedPassword);
 
     return sendSuccess(

@@ -38,11 +38,3 @@ export const apiRateLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Rate limiter for email verification endpoints
-export const emailRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10,
-  message: 'Too many requests. Please try again later.',
-  standardHeaders: true,
-  legacyHeaders: false,
-});
