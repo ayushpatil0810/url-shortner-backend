@@ -12,6 +12,7 @@ const requiredEnvVars = [
   "MAILTRAP_PORT",
   "MAILTRAP_USER",
   "MAILTRAP_PASS",
+  "REDIS_URL",
 ];
 
 const missingEnvVars = requiredEnvVars.filter(
@@ -22,7 +23,9 @@ if (missingEnvVars.length > 0) {
   console.error(
     `❌ Missing required environment variables: ${missingEnvVars.join(", ")}`,
   );
-  console.error("Please check your .env file and ensure all required variables are set.");
+  console.error(
+    "Please check your .env file and ensure all required variables are set.",
+  );
   process.exit(1);
 }
 
@@ -34,19 +37,22 @@ const CORS_ORIGIN = process.env.CORS_ORIGIN as string;
 const APP_BASE_URL = process.env.APP_BASE_URL as string;
 const APP_NAME = process.env.APP_NAME || "Your App";
 const APP_WEBSITE = process.env.APP_WEBSITE || "https://yourapp.com";
+const REDIS_URL = process.env.REDIS_URL as string;
 
 const ACCESS_TOKEN_CONFIG = {
   secret: process.env.ACCESS_TOKEN_SECRET as string,
   expiresIn: (process.env.ACCESS_TOKEN_EXPIRY as string) || "15m", // JWT expects string format
-  expiresInMs:
-    msConverter((process.env.ACCESS_TOKEN_EXPIRY as StringValue) || "15m"), // For cookie maxAge
+  expiresInMs: msConverter(
+    (process.env.ACCESS_TOKEN_EXPIRY as StringValue) || "15m",
+  ), // For cookie maxAge
 };
 
 const REFRESH_TOKEN_CONFIG = {
   secret: process.env.REFRESH_TOKEN_SECRET as string,
   expiresIn: (process.env.REFRESH_TOKEN_EXPIRY as string) || "7d", // JWT expects string format
-  expiresInMs:
-    msConverter((process.env.REFRESH_TOKEN_EXPIRY as StringValue) || "7d"), // For cookie maxAge and DB storage
+  expiresInMs: msConverter(
+    (process.env.REFRESH_TOKEN_EXPIRY as StringValue) || "7d",
+  ), // For cookie maxAge and DB storage
 };
 
 const MAILTRAP_CONFIG = {
@@ -70,4 +76,5 @@ export {
   APP_BASE_URL,
   APP_NAME,
   APP_WEBSITE,
+  REDIS_URL,
 };
