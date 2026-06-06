@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { type Request, type Response } from 'express';
 import db from '../config/database.js';
 import { urlsTable } from '../models/url.model.js';
@@ -19,6 +19,7 @@ import {
   getRedisAnalytics,
   deleteAnalytics,
 } from '../services/analytics.service.js';
+import logger from '../utils/logger.js';
 
 // Controller for shortening a URL
 export const shortenUrl = asyncHandler(
@@ -108,12 +109,15 @@ export const redirectToUrl = asyncHandler(
     // Record click in Redis (fire-and-forget — errors are caught inside the service)
     recordClick(urlRecord.id);
 
-    // Persist the click count to the DB as well (best-effort)
+    // Atomically increment click count in the DB — avoids stale read/race under concurrent redirects
     db.update(urlsTable)
-      .set({ clicks: urlRecord.clicks + 1 })
+      .set({ clicks: sql`${urlsTable.clicks} + 1` })
       .where(eq(urlsTable.id, urlRecord.id))
-      .catch((err: any) => {
-        console.error('[URL] Failed to increment DB click count:', err);
+      .catch((err: unknown) => {
+        logger.error('[URL] Failed to increment DB click count', {
+          urlId: urlRecord.id,
+          error: err instanceof Error ? err.message : err,
+        });
       });
 
     // Redirect to the original URL
